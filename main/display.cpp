@@ -1,12 +1,24 @@
 #include "display.h"
-#include "driver/i2c_master.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/gpio.h"
+#include "driver/spi_master.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_vendor.h"
+#include "esp_lcd_panel_ops.h"
 #include <cstdio>
 #include <cmath>
 #include <cstring>
 #include <cstdlib>
+
+// ─── ST7789 SPI LCD 引脚配置 ──────────────────────────────────────
+#define DISPLAY_SPI_SCK_PIN     39
+#define DISPLAY_SPI_MOSI_PIN    40
+#define DISPLAY_DC_PIN          38
+#define DISPLAY_SPI_CS_PIN      41
+#define DISPLAY_RES             45
+#define DISPLAY_BLK             42
 
 // ─── 5x7 Font Table (ASCII 32-126) ────────────────────────────────
 const uint8_t font5x7[][5] = {
@@ -107,262 +119,407 @@ const uint8_t font5x7[][5] = {
     {0x08,0x08,0x2A,0x1C,0x08}, // ~
 };
 
-// ─── I2C / SSD1306 Low-Level ──────────────────────────────────────
-
 Display::~Display() {
-    if (i2c_dev_handle_) {
-        i2c_master_bus_rm_device(i2c_dev_handle_);
+    if (panel_) {
+        esp_lcd_panel_del(panel_);
     }
-    if (i2c_bus_handle_) {
-        i2c_del_master_bus(i2c_bus_handle_);
+    if (panel_io_) {
+        esp_lcd_panel_io_del(panel_io_);
+    }
+    spi_bus_free(SPI3_HOST);
+    if (framebuf_) {
+        free(framebuf_);
     }
 }
 
 bool Display::init(int sda, int scl, int reset) {
-    // Configure I2C bus
-    i2c_master_bus_config_t bus_cfg = {};
-    bus_cfg.i2c_port = I2C_NUM_1;
-    bus_cfg.sda_io_num = (gpio_num_t)sda;
-    bus_cfg.scl_io_num = (gpio_num_t)scl;
-    bus_cfg.clk_source = I2C_CLK_SRC_DEFAULT;
-    bus_cfg.glitch_ignore_cnt = 7;
-    bus_cfg.flags.enable_internal_pullup = true;
+    ESP_LOGI(TAG, "Initializing ST7789 SPI LCD...");
 
-    esp_err_t ret = i2c_new_master_bus(&bus_cfg, &i2c_bus_handle_);
+    // 1. 初始化背光引脚
+    gpio_config_t bk_gpio_config = {};
+    bk_gpio_config.mode = GPIO_MODE_OUTPUT;
+    bk_gpio_config.pin_bit_mask = 1ULL << DISPLAY_BLK;
+    gpio_config(&bk_gpio_config);
+    gpio_set_level((gpio_num_t)DISPLAY_BLK, 1); // 开启背光
+
+    // 2. 初始化 SPI 总线
+    spi_bus_config_t buscfg = {};
+    buscfg.mosi_io_num = DISPLAY_SPI_MOSI_PIN;
+    buscfg.miso_io_num = -1;
+    buscfg.sclk_io_num = DISPLAY_SPI_SCK_PIN;
+    buscfg.quadwp_io_num = -1;
+    buscfg.quadhd_io_num = -1;
+    buscfg.max_transfer_sz = SCREEN_W * SCREEN_H * sizeof(uint16_t);
+    esp_err_t ret = spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_new_master_bus failed: %d", ret);
+        ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
         return false;
     }
 
-    i2c_device_config_t dev_cfg = {};
-    dev_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-    dev_cfg.device_address = I2C_ADDR;
-    dev_cfg.scl_speed_hz = 100000;
-
-    ret = i2c_master_bus_add_device(i2c_bus_handle_, &dev_cfg, &i2c_dev_handle_);
+    // 3. 初始化 Panel IO SPI 通信
+    esp_lcd_panel_io_spi_config_t io_config = {};
+    io_config.cs_gpio_num = DISPLAY_SPI_CS_PIN;
+    io_config.dc_gpio_num = DISPLAY_DC_PIN;
+    io_config.spi_mode = 3;
+    io_config.pclk_hz = 80 * 1000 * 1000;
+    io_config.trans_queue_depth = 10;
+    io_config.lcd_cmd_bits = 8;
+    io_config.lcd_param_bits = 8;
+    ret = esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io_);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_master_bus_add_device failed: %d", ret);
+        ESP_LOGE(TAG, "Failed to create panel IO: %s", esp_err_to_name(ret));
         return false;
     }
 
-    i2c_port_ = 1;
-
-    // SSD1306 init sequence for 128x32
-    static const uint8_t init_cmds[] = {
-        0xAE,       // display off
-        0xD5, 0x80, // clock div
-        0xA8, 0x1F, // multiplex ratio = 31 (32-1)
-        0xD3, 0x00, // display offset
-        0x40,       // start line
-        0x8D, 0x14, // charge pump enable
-        0x20, 0x00, // memory mode: horizontal
-        0xA1,       // segment remap (column 127 = SEG0)
-        0xC8,       // COM scan direction (COM[N-1] to COM0)
-        0xDA, 0x02, // COM pins
-        0x81, 0x8F, // contrast
-        0xD9, 0xF1, // pre-charge
-        0xDB, 0x40, // VCOM detect
-        0xA4,       // entire display on: follow RAM
-        0xA6,       // normal (not inverted)
-        0xAF,       // display on
-    };
-
-    for (size_t i = 0; i < sizeof(init_cmds); i++) {
-        i2c_write_cmd(init_cmds[i]);
+    // 4. 初始化 ST7789 Panel 驱动
+    esp_lcd_panel_dev_config_t panel_config = {};
+    panel_config.reset_gpio_num = DISPLAY_RES;
+    panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+    panel_config.bits_per_pixel = 16;
+    ret = esp_lcd_new_panel_st7789(panel_io_, &panel_config, &panel_);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create ST7789 panel: %s", esp_err_to_name(ret));
+        return false;
     }
 
-    memset(framebuf_, 0, sizeof(framebuf_));
+    ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
+    ESP_ERROR_CHECK(esp_lcd_panel_init(panel_));
+    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_, false));
+    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, false, false));
+    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true)); // 反色适配
+    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+
+    // 5. 分配 240x240 16-bit 帧缓冲区
+    framebuf_ = (uint16_t *)heap_caps_malloc(SCREEN_W * SCREEN_H * sizeof(uint16_t), MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    if (!framebuf_) {
+        ESP_LOGW(TAG, "DRAM DMA allocation failed, trying fallback standard malloc");
+        framebuf_ = (uint16_t *)malloc(SCREEN_W * SCREEN_H * sizeof(uint16_t));
+    }
+    if (!framebuf_) {
+        ESP_LOGE(TAG, "Failed to allocate frame buffer memory!");
+        return false;
+    }
+
+    memset(framebuf_, 0, SCREEN_W * SCREEN_H * sizeof(uint16_t));
     flush();
 
     initialized_ = true;
-    ESP_LOGI(TAG, "SSD1306 I2C init OK (SDA=%d SCL=%d %dx%d)", sda, scl, SCREEN_W, SCREEN_H);
+    ESP_LOGI(TAG, "ST7789 240x240 LCD initialization complete");
     return true;
 }
 
-void Display::i2c_write_cmd(uint8_t cmd) {
-    if (!i2c_dev_handle_) return;
-    uint8_t buf[2] = {0x00, cmd};  // 0x00 = command mode
-    i2c_master_transmit(i2c_dev_handle_, buf, 2, pdMS_TO_TICKS(10));
-}
-
-void Display::i2c_write_data(const uint8_t *data, size_t len) {
-    if (!i2c_dev_handle_) return;
-    // I2C writes are limited; split into chunks with 0x40 prefix
-    static uint8_t buf[129];  // 1 + max 128 bytes
-    buf[0] = 0x40;  // data mode
-    while (len > 0) {
-        size_t chunk = len > 128 ? 128 : len;
-        memcpy(buf + 1, data, chunk);
-        i2c_master_transmit(i2c_dev_handle_, buf, chunk + 1, pdMS_TO_TICKS(20));
-        data += chunk;
-        len -= chunk;
-    }
-}
-
 void Display::flush() {
-    // Send entire framebuffer in one batch
-    uint8_t col_cmd[] = {0x00, 0x21, 0x00, 0x7F};  // column 0-127
-    uint8_t page_cmd[] = {0x00, 0x22, 0x00, 0x03};  // page 0-3 (128x32)
-    i2c_write_cmd(0x21); i2c_write_cmd(0x00); i2c_write_cmd(0x7F);
-    i2c_write_cmd(0x22); i2c_write_cmd(0x00); i2c_write_cmd(0x03);
-    i2c_write_data(framebuf_, sizeof(framebuf_));
+    if (!panel_ || !framebuf_) return;
+    esp_lcd_panel_draw_bitmap(panel_, 0, 0, SCREEN_W, SCREEN_H, framebuf_);
 }
 
-// ─── Drawing Primitives ───────────────────────────────────────────
+// ─── 绘图基础原语 ─────────────────────────────────────────────────
 
-static inline void set_pixel(uint8_t *fb, int x, int y) {
-    if (x < 0 || x >= 128 || y < 0 || y >= 32) return;
-    fb[x + (y / 8) * 128] |= (1 << (y & 7));
-}
+void Display::fill_rect(int x, int y, int w, int h, uint16_t color) {
+    if (!framebuf_) return;
+    // 裁剪边界
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > SCREEN_W) w = SCREEN_W - x;
+    if (y + h > SCREEN_H) h = SCREEN_H - y;
+    if (w <= 0 || h <= 0) return;
 
-static inline void clear_pixel(uint8_t *fb, int x, int y) {
-    if (x < 0 || x >= 128 || y < 0 || y >= 32) return;
-    fb[x + (y / 8) * 128] &= ~(1 << (y & 7));
-}
-
-void Display::draw_char_5x7(int x, int y, char c, bool invert) {
-    if (c < 32 || c > 126) c = '?';
-    const uint8_t *glyph = font5x7[c - 32];
-    for (int col = 0; col < 5; col++) {
-        uint8_t bits = invert ? ~glyph[col] : glyph[col];
-        for (int row = 0; row < 7; row++) {
-            if (bits & (1 << row))
-                set_pixel(framebuf_, x + col, y + row);
-            else
-                clear_pixel(framebuf_, x + col, y + row);
+    for (int dy = 0; dy < h; dy++) {
+        uint16_t *line = &framebuf_[(y + dy) * SCREEN_W + x];
+        for (int dx = 0; dx < w; dx++) {
+            line[dx] = color;
         }
     }
-    // 1px spacing column
-    for (int row = 0; row < 7; row++)
-        clear_pixel(framebuf_, x + 5, y + row);
 }
 
-void Display::draw_char_15x21(int x, int y, char c) {
-    // 3x scale of 5x7 font (15x21 pixels)
+void Display::draw_char_scaled(int x, int y, char c, int scale, uint16_t color, uint16_t bg, bool use_bg) {
+    if (!framebuf_) return;
     if (c < 32 || c > 126) c = '?';
     const uint8_t *glyph = font5x7[c - 32];
     for (int col = 0; col < 5; col++) {
+        uint8_t bits = glyph[col];
         for (int row = 0; row < 7; row++) {
-            if (glyph[col] & (1 << row)) {
-                for (int dy = 0; dy < 3; dy++)
-                    for (int dx = 0; dx < 3; dx++)
-                        set_pixel(framebuf_, x + col*3 + dx, y + row*3 + dy);
+            if (bits & (1 << row)) {
+                fill_rect(x + col * scale, y + row * scale, scale, scale, color);
+            } else if (use_bg) {
+                fill_rect(x + col * scale, y + row * scale, scale, scale, bg);
             }
         }
     }
-}
-
-void Display::draw_text(int x, int y, const char *text, int len, bool invert) {
-    for (int i = 0; i < len && x + i*6 < SCREEN_W - 5; i++) {
-        draw_char_5x7(x + i*6, y, text[i], invert);
+    // 字符间距列
+    if (use_bg) {
+        fill_rect(x + 5 * scale, y, scale, 7 * scale, bg);
     }
 }
 
-void Display::draw_text_x3(int x, int y, const char *text, int len) {
-    for (int i = 0; i < len && x + i*18 < SCREEN_W - 15; i++) {
-        draw_char_15x21(x + i*18, y, text[i]);
+void Display::draw_text_scaled(int x, int y, const char *text, int len, int scale, uint16_t color, uint16_t bg, bool use_bg) {
+    for (int i = 0; i < len; i++) {
+        int cx = x + i * 6 * scale;
+        if (cx + 5 * scale >= SCREEN_W) break;
+        draw_char_scaled(cx, y, text[i], scale, color, bg, use_bg);
     }
 }
-
-// ─── High-Level Display Methods ───────────────────────────────────
 
 void Display::clear() {
-    memset(framebuf_, 0, sizeof(framebuf_));
-    flush();
+    if (framebuf_) {
+        memset(framebuf_, 0, SCREEN_W * SCREEN_H * sizeof(uint16_t));
+        flush();
+    }
 }
+
+// ─── 界面高层绘制函数 ──────────────────────────────────────────────
 
 void Display::show_splash() {
     if (!initialized_) return;
-    memset(framebuf_, 0, sizeof(framebuf_));
-    draw_text_x3(12, 4, "Tesla", 5);
-    draw_text(48, 24, "BLE Dash", 8);
+    memset(framebuf_, 0, SCREEN_W * SCREEN_H * sizeof(uint16_t));
+
+    // Tesla Logo (红色, 大号字体)
+    // 5个字母，每个宽 5*6=30，间距 6，共 174 像素宽
+    int xs = (SCREEN_W - 174) / 2;
+    draw_text_scaled(xs, 75, "Tesla", 5, 6, 0xF800); // 赛道红
+
+    // "BLE DASH" (白色, 中号字体)
+    // 8个字母，每个宽 5*2=10，间距 2，共 94 像素宽
+    xs = (SCREEN_W - 94) / 2;
+    draw_text_scaled(xs, 140, "BLE DASH", 8, 2, 0xFFFF);
+
+    // 底部小字
+    xs = (SCREEN_W - 130) / 2;
+    draw_text_scaled(xs, 200, "Initializing BLE...", 19, 1, 0x7BEF);
+
     flush();
 }
 
 void Display::show_pairing(const std::string &msg) {
     if (!initialized_) return;
-    memset(framebuf_, 0, sizeof(framebuf_));
-    draw_text_x3(4, 0, "PAIR", 4);
-    draw_text(0, 24, msg.c_str(), msg.size() < 21 ? (int)msg.size() : 21);
+    memset(framebuf_, 0, SCREEN_W * SCREEN_H * sizeof(uint16_t));
+
+    // 顶部标题
+    int xs = (SCREEN_W - 142) / 2;
+    draw_text_scaled(xs, 25, "PAIRING MODE", 12, 2, 0xF800);
+
+    // 绘制一把卡片钥匙 (图形化)
+    fill_rect(70, 75, 100, 60, 0x18C3); // 钥匙背景
+    // 钥匙内边框
+    for (int i = 0; i < 2; i++) {
+        // 画线框
+        fill_rect(72 + i, 77 + i, 96 - 2 * i, 1, 0x7BEF);
+        fill_rect(72 + i, 132 - i, 96 - 2 * i, 1, 0x7BEF);
+        fill_rect(72 + i, 77 + i, 1, 56 - 2 * i, 0x7BEF);
+        fill_rect(167 - i, 77 + i, 1, 56 - 2 * i, 0x7BEF);
+    }
+    // NFC 字样
+    draw_text_scaled(105, 95, "NFC", 3, 2, 0xFFFF);
+
+    // 底部刷卡提示
+    xs = (SCREEN_W - (int)(msg.size() * 12 - 2)) / 2;
+    draw_text_scaled(xs >= 0 ? xs : 0, 165, msg.c_str(), msg.size(), 2, 0xFFFF);
+
+    // 重置按键提示
+    xs = (SCREEN_W - 166) / 2;
+    draw_text_scaled(xs, 210, "Hold Boot button to cancel", 26, 1, 0x7BEF);
+
     flush();
 }
 
 void Display::show_error(const std::string &msg) {
     if (!initialized_) return;
-    memset(framebuf_, 0, sizeof(framebuf_));
-    draw_text(0, 0, "ERR", 3);
-    draw_text(0, 10, msg.c_str(), msg.size() < 21 ? (int)msg.size() : 21);
-    draw_text(0, 20, msg.size() > 21 ? msg.c_str() + 21 : "", msg.size() > 21 ? (int)(msg.size() - 21) : 0);
+    memset(framebuf_, 0, SCREEN_W * SCREEN_H * sizeof(uint16_t));
+
+    int xs = (SCREEN_W - 60) / 2;
+    draw_text_scaled(xs, 40, "ERROR", 5, 2, 0xF800);
+
+    // 错误说明（分多行处理）
+    std::string line1 = msg.substr(0, 18);
+    std::string line2 = msg.size() > 18 ? msg.substr(18, 18) : "";
+
+    xs = (SCREEN_W - (int)(line1.size() * 12 - 2)) / 2;
+    draw_text_scaled(xs >= 0 ? xs : 0, 100, line1.c_str(), line1.size(), 2, 0xFFFF);
+
+    if (!line2.empty()) {
+        xs = (SCREEN_W - (int)(line2.size() * 12 - 2)) / 2;
+        draw_text_scaled(xs >= 0 ? xs : 0, 130, line2.c_str(), line2.size(), 2, 0xFFFF);
+    }
+
+    xs = (SCREEN_W - 124) / 2;
+    draw_text_scaled(xs, 190, "Check connections", 17, 1, 0x7BEF);
+
     flush();
 }
 
 void Display::show_text_lines(const std::string &line1, const std::string &line2,
                                const std::string &line3) {
     if (!initialized_) return;
-    memset(framebuf_, 0, sizeof(framebuf_));
-    if (!line1.empty()) draw_text(0, 0,  line1.c_str(), line1.size());
-    if (!line2.empty()) draw_text(0, 10, line2.c_str(), line2.size());
-    if (!line3.empty()) draw_text(0, 20, line3.c_str(), line3.size());
+    memset(framebuf_, 0, SCREEN_W * SCREEN_H * sizeof(uint16_t));
+
+    if (!line1.empty()) {
+        int xs = (SCREEN_W - (int)(line1.size() * 12 - 2)) / 2;
+        draw_text_scaled(xs >= 0 ? xs : 0, 50, line1.c_str(), line1.size(), 2, 0xFFFF);
+    }
+    if (!line2.empty()) {
+        int xs = (SCREEN_W - (int)(line2.size() * 12 - 2)) / 2;
+        draw_text_scaled(xs >= 0 ? xs : 0, 110, line2.c_str(), line2.size(), 2, 0xFFFF);
+    }
+    if (!line3.empty()) {
+        int xs = (SCREEN_W - (int)(line3.size() * 12 - 2)) / 2;
+        draw_text_scaled(xs >= 0 ? xs : 0, 170, line3.c_str(), line3.size(), 2, 0xFFFF);
+    }
+
     flush();
 }
 
-// ─── Dashboard Render (128x32) ────────────────────────────────────
-//
-//  y=0..20: Speed x3 (21px tall)
-//  y=24..31: [Gear] ODO status line (7px tall)
-//
-//  ┌──────────────────────────────┐
-//  │        88 km/h          BT ON│
-//  │ [D] ODO: 42,350 km           │
-//  └──────────────────────────────┘
+// ─── 特斯拉仪表盘绘制逻辑 ──────────────────────────────────────────
 
-void Display::render_dashboard(const DashData &data) {
-    if (!initialized_) return;
+void Display::draw_status_bar(const DashData &data) {
+    // 绘制一条底部分割线
+    fill_rect(10, 35, 220, 1, 0x18C3);
 
-    if (!first_render_ && data.speed_kmh == last_data_.speed_kmh &&
-        data.gear == last_data_.gear &&
-        data.odometer_km == last_data_.odometer_km &&
-        data.ble_connected == last_connected_) {
-        return;
+    // 1. 蓝牙连接状态
+    uint16_t ble_color = data.ble_connected ? 0x03FF : 0x7BEF; // 蓝色 vs 灰色
+    // 画一个状态指示圆点
+    fill_rect(15, 16, 5, 5, ble_color);
+    draw_text_scaled(25, 15, "BLE", 3, 1, ble_color);
+    if (data.ble_connected) {
+        draw_text_scaled(47, 15, "OK", 2, 1, 0x07E0); // 绿色 OK
+    } else {
+        draw_text_scaled(47, 15, "DISC", 4, 1, 0x7BEF);
     }
 
-    memset(framebuf_, 0, sizeof(framebuf_));
+    // 2. 车辆唤醒状态
+    uint16_t awake_color = data.vehicle_awake ? 0x07E0 : 0x7BEF; // 绿色 vs 灰色
+    fill_rect(155, 16, 5, 5, awake_color);
+    if (data.vehicle_awake) {
+        draw_text_scaled(165, 15, "VEHICLE AWAKE", 13, 1, 0x07E0);
+    } else {
+        draw_text_scaled(165, 15, "VEHICLE SLEEP", 13, 1, 0x7BEF);
+    }
+}
 
-    // ── Speed (x3 large font, y=0, centered) ──
-    int speed_int = (int)std::round(data.speed_kmh);
+void Display::draw_speed(float speed) {
+    int speed_int = (int)std::round(speed);
     if (speed_int > 999) speed_int = 999;
+    if (speed_int < 0) speed_int = 0;
 
     char buf[8];
     int len = snprintf(buf, sizeof(buf), "%d", speed_int);
 
-    // Center 3 digits at (128 - len*18) / 2, shifted left a bit
-    int xs = (SCREEN_W - len * 18) / 2 - 4;
-    draw_text_x3(xs, 0, buf, len);
+    // scale=8 时速数字
+    // 字符宽 5*8=40，字符间距 8，总宽度 len * 48 - 8
+    int char_w = 40;
+    int gap = 8;
+    int total_w = len * (char_w + gap) - gap;
+    int xs = (SCREEN_W - total_w) / 2;
 
-    // "km/h" indicator on the right
-    int unit_x = xs + len * 18 + 2;
-    if (unit_x < 110) {
-        draw_char_5x7(unit_x, 2, 'k');
-        draw_char_5x7(unit_x+6, 2, 'm');
-        draw_char_5x7(unit_x+12, 9, '/');
-        draw_char_5x7(unit_x+18, 9, 'h');
+    draw_text_scaled(xs, 50, buf, len, 8, 0xFFFF); // 时速用酷白色
+
+    // 绘制 km/h 单位
+    // 单位宽 4*12-2 = 46 像素
+    int unit_xs = (SCREEN_W - 46) / 2;
+    draw_text_scaled(unit_xs, 115, "km/h", 4, 2, 0xF800); // 单位用标志性特斯拉红
+}
+
+void Display::draw_energy_bar(float speed) {
+    // y = 138 处的能量进度条
+    int bar_x = 30;
+    int bar_y = 140;
+    int bar_w = 180;
+    int bar_h = 4;
+
+    // 背景色
+    fill_rect(bar_x, bar_y, bar_w, bar_h, 0x18C3);
+
+    // 指示条比例 (假设 150 km/h 为满量程)
+    float ratio = speed / 150.0f;
+    if (ratio > 1.0f) ratio = 1.0f;
+    if (ratio < 0.0f) ratio = 0.0f;
+    
+    int fill_w = (int)(ratio * bar_w);
+    if (fill_w > 0) {
+        uint16_t color = 0x07FF; // 默认青蓝色
+        if (ratio > 0.85f) {
+            color = 0xF800; // 超速用红色
+        } else if (ratio > 0.60f) {
+            color = 0xFFE0; // 中速用黄色
+        }
+        fill_rect(bar_x, bar_y, fill_w, bar_h, color);
+    }
+}
+
+void Display::draw_gears(char gear) {
+    // 档位 P, R, N, D
+    char gear_chars[] = {'P', 'R', 'N', 'D'};
+    int gear_x[] = {30, 82, 134, 186};
+    int gear_y = 160;
+    int card_size = 28;
+
+    for (int i = 0; i < 4; i++) {
+        char g = gear_chars[i];
+        int x = gear_x[i];
+        
+        if (gear == g) {
+            // 当前档位：绘制红色高亮背景卡片，白色文字
+            fill_rect(x, gear_y, card_size, card_size, 0xF800);
+            draw_char_scaled(x + 7, gear_y + 4, g, 3, 0xFFFF);
+        } else {
+            // 未选中档位：直接绘制暗灰色文字，无背景
+            draw_char_scaled(x + 7, gear_y + 4, g, 3, 0x5AEB);
+        }
+    }
+}
+
+void Display::draw_odometer(uint32_t odo) {
+    char buf[32];
+    int len;
+    if (odo > 0) {
+        len = snprintf(buf, sizeof(buf), "ODO: %u km", (unsigned int)odo);
+    } else {
+        len = snprintf(buf, sizeof(buf), "ODO: --- km");
     }
 
-    // ── Bottom line (y=24): [G] + ODO ──
-    char line[32];
-    int pos = 0;
-    pos += snprintf(line + pos, sizeof(line) - pos, "[%c] ", data.gear);
-    if (data.odometer_km > 0)
-        pos += snprintf(line + pos, sizeof(line) - pos, "%u km", (unsigned int)data.odometer_km);
-    else
-        pos += snprintf(line + pos, sizeof(line) - pos, "--- km");
-    draw_text(0, 24, line, pos);
+    // scale=2 Odometer
+    // 宽度 len * 12 - 2
+    int total_w = len * 12 - 2;
+    int xs = (SCREEN_W - total_w) / 2;
 
-    // ── Status icons (top-right) ──
-    if (data.ble_connected)  draw_text(110, 0, "BT", 2);
-    if (data.vehicle_awake)  draw_text(110, 9, "ON", 2);
-    if (!data.valid)         draw_text(70, 24, "NO DATA", 7);
+    draw_text_scaled(xs, 205, buf, len, 2, 0xCE79); // 用浅柔和色显示
+}
 
+void Display::render_dashboard(const DashData &data) {
+    if (!initialized_) return;
+
+    // 为了降低屏幕闪烁与SPI通信负荷，如果数据完全没有变化且不是首次渲染，则跳过
+    if (!first_render_ && data.speed_kmh == last_data_.speed_kmh &&
+        data.gear == last_data_.gear &&
+        data.odometer_km == last_data_.odometer_km &&
+        data.ble_connected == last_connected_ &&
+        data.vehicle_awake == last_data_.vehicle_awake &&
+        data.valid == last_data_.valid) {
+        return;
+    }
+
+    // 全局涂黑
+    memset(framebuf_, 0, SCREEN_W * SCREEN_H * sizeof(uint16_t));
+
+    // 1. 绘制状态栏
+    draw_status_bar(data);
+
+    // 2. 绘制时速
+    if (data.valid) {
+        draw_speed(data.speed_kmh);
+        draw_energy_bar(data.speed_kmh);
+    } else {
+        // 未获得数据时显示 "NO DATA"
+        int xs = (SCREEN_W - 98) / 2; // 7 * 12 - 2 = 82? 7*18 - 6? scale=2 -> 7 * 12 - 2 = 82
+        draw_text_scaled(xs, 75, "NO DATA", 7, 2, 0x7BEF);
+    }
+
+    // 3. 绘制档位卡片
+    draw_gears(data.gear);
+
+    // 4. 绘制里程表
+    draw_odometer(data.odometer_km);
+
+    // 刷显到屏幕
     flush();
 
     last_data_ = data;

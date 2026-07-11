@@ -1,8 +1,11 @@
 #pragma once
 
 #include "dash_data.h"
-#include "driver/i2c_master.h"
 #include <string>
+#include <cstdint>
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_vendor.h"
+#include "esp_lcd_panel_ops.h"
 
 class Display {
 public:
@@ -20,28 +23,30 @@ public:
 
 private:
     static constexpr const char *TAG = "Display";
-    static constexpr int SCREEN_W = 128;
-    static constexpr int SCREEN_H = 32;
-    static constexpr uint8_t I2C_ADDR = 0x3C;
+    static constexpr int SCREEN_W = 240;
+    static constexpr int SCREEN_H = 240;
 
-    int i2c_port_ = 0;
     bool initialized_ = false;
-    i2c_master_bus_handle_t i2c_bus_handle_ = nullptr;
-    i2c_master_dev_handle_t i2c_dev_handle_ = nullptr;
-    uint8_t framebuf_[128 * 4] = {};  // 128x32 / 8 pages
+    esp_lcd_panel_io_handle_t panel_io_ = nullptr;
+    esp_lcd_panel_handle_t panel_ = nullptr;
+    uint16_t *framebuf_ = nullptr;
 
-    void i2c_write_cmd(uint8_t cmd);
-    void i2c_write_data(const uint8_t *data, size_t len);
     void flush();
-    void draw_char_5x7(int x, int y, char c, bool invert = false);
-    void draw_char_15x21(int x, int y, char c);  // 3x scaled
-    void draw_text(int x, int y, const char *text, int len, bool invert = false);
-    void draw_text_x3(int x, int y, const char *text, int len);
+    void fill_rect(int x, int y, int w, int h, uint16_t color);
+    void draw_char_scaled(int x, int y, char c, int scale, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
+    void draw_text_scaled(int x, int y, const char *text, int len, int scale, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
+    
+    // 特斯拉风格 UI 各功能块绘制
+    void draw_status_bar(const DashData &data);
+    void draw_speed(float speed);
+    void draw_energy_bar(float speed);
+    void draw_gears(char gear);
+    void draw_odometer(uint32_t odo);
 
     DashData last_data_;
     bool last_connected_ = false;
     bool first_render_ = true;
 };
 
-// 5x7 font table (ASCII 0x20-0x7E)
+// 5x7 字体字模声明
 extern const uint8_t font5x7[][5];
