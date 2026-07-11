@@ -1,0 +1,4 @@
+dependencies:
+  yoziru/tesla-ble:
+    git: https://github.com/yoziru/tesla-ble.git
+    version: v5.1.1

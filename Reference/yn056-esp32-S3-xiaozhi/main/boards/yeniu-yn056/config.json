@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "yeniu_yn056",
+            "sdkconfig_append": []
+        }
+    ]
+}

@@ -1,0 +1,131 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main", "develop"]
+
+# Prevent redundant runs on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_TYPE: Release
+  # NOTE: When updating CLANG_VERSION, also update the matrix packages below
+  CLANG_VERSION: 21
+
+jobs:
+  checks:
+    name: ${{ matrix.check-name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Show all failures instead of stopping early
+      matrix:
+        include:
+          - check: format
+            check-name: Format Check
+            packages: clang-format-21
+            needs_symlink: true
+          - check: tidy
+            check-name: Tidy Check
+            packages: clang-tidy-21 protobuf-compiler build-essential cmake ccache
+            needs_symlink: true
+          - check: test
+            check-name: Build and Test
+            packages: protobuf-compiler build-essential cmake ccache
+          - check: examples
+            check-name: Build Examples
+            packages: protobuf-compiler build-essential cmake ccache
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cache LLVM repository setup
+        if: matrix.check == 'format' || matrix.check == 'tidy'
+        id: cache-llvm-repo
+        uses: actions/cache@v4
+        with:
+          path: /etc/apt/sources.list.d/llvm.list
+          key: llvm-repo-noble-${{ env.CLANG_VERSION }}-${{ hashFiles('.github/workflows/cmake.yml') }}
+
+      - name: Add LLVM repository
+        if: (matrix.check == 'format' || matrix.check == 'tidy') && steps.cache-llvm-repo.outputs.cache-hit != 'true'
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-${{ env.CLANG_VERSION }} main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get update
+
+      - name: Install apt dependencies (with cache)
+        uses: awalsh128/cache-apt-pkgs-action@v1.6.0
+        with:
+          packages: ${{ matrix.packages }}
+          version: 1.1
+
+      - name: Symlink clang-format
+        if: matrix.check == 'format'
+        run: |
+          ln -sf /usr/bin/clang-format-${{ env.CLANG_VERSION }} /usr/local/bin/clang-format
+          clang-format --version
+
+      - name: Install clang tools (uncached for correct symlinks)
+        if: matrix.check == 'tidy'
+        run: |
+          ln -sf /usr/bin/clang-tidy-${{ env.CLANG_VERSION }} /usr/local/bin/clang-tidy
+          clang-tidy --version
+
+      - name: Install python dependencies
+        if: matrix.check == 'test' || matrix.check == 'examples'
+        run: python3 -m pip install protobuf grpcio-tools
+
+      - name: Setup ccache
+        # Skip ccache for format check as it doesn't compile code
+        if: matrix.check != 'format'
+        uses: hendrikmuhs/ccache-action@v1.2.20
+        with:
+          key: checks-${{ matrix.check }}-${{ runner.os }}-mbedtls-3.6.5
+
+      - name: Set reusable strings
+        if: matrix.check != 'format'
+        id: strings
+        shell: bash
+        run: echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+      - name: Configure CMake
+        if: matrix.check != 'format'
+        run: >
+          cmake -B ${{ steps.strings.outputs.build-output-dir }}
+          -DCMAKE_CXX_COMPILER=g++
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          -S ${{ github.workspace }}
+
+      - name: Check clang-format
+        if: matrix.check == 'format'
+        run: ./scripts/clang-format.sh --check
+
+      - name: Run clang-tidy
+        if: matrix.check == 'tidy'
+        run: ./scripts/clang-tidy.sh --check
+
+      - name: Build Library
+        if: matrix.check == 'test'
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ env.BUILD_TYPE }} -j
+
+      - name: Run Tests
+        if: matrix.check == 'test'
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        run: ctest --build-config ${{ env.BUILD_TYPE }} --output-on-failure --verbose
+
+      - name: Build and run example
+        if: matrix.check == 'examples'
+        run: |
+          mkdir -p build-example && cd build-example
+          cmake ../examples/simple -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build . --config ${{ env.BUILD_TYPE }}
+          ./simple

@@ -1,0 +1,24 @@
+menu "Tesla BLE Dashboard"
+
+config OLED_SDA_GPIO
+    int "OLED SDA GPIO"
+    default 41
+    range 0 48
+    help
+        I2C SDA pin for SSD1306 OLED display
+
+config OLED_SCL_GPIO
+    int "OLED SCL GPIO"
+    default 42
+    range 0 48
+    help
+        I2C SCL pin for SSD1306 OLED display
+
+config OLED_RESET_GPIO
+    int "OLED RESET GPIO"
+    default -1
+    range -1 48
+    help
+        Reset pin for SSD1306 OLED display (-1 = not connected)
+
+endmenu

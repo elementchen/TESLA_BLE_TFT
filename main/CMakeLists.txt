@@ -1,0 +1,16 @@
+idf_component_register(
+    SRCS
+        "main.cpp"
+        "ble_adapter.cpp"
+        "storage_adapter.cpp"
+        "display.cpp"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        bt
+        nvs_flash
+        driver
+        esp_timer
+        mbedtls
+        tesla-ble
+)

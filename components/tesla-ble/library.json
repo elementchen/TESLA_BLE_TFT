@@ -1,0 +1,29 @@
+{
+  "name": "TeslaBLE",
+  "version": "5.1.1",
+  "description": "This CPP library facilitates direct communication with Tesla vehicles via the BLE API. It offers fundamental features such as unlocking/locking, opening the trunk, and more. The library's capabilities are contingent on the range of actions implemented by Tesla, which is the only limitation at present.",
+  "keywords": "tesla, ble",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yoziru/tesla-ble.git"
+  },
+  "authors": [
+    {
+      "name": "Yasir Ekinci",
+      "email": "hi@yasirekinci.com",
+      "url": "https://yasirekinci.com",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/yoziru/tesla-ble/wiki",
+  "frameworks": "*",
+  "platforms": ["espressif32"],
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include"
+  },
+  "dependencies": {
+    "nanopb/Nanopb": "^0.4.91"
+  }
+}
