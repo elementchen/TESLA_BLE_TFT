@@ -1,0 +1,67 @@
+Command: ninja flash
+[1/5] cd /Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/esp-idf/esptool_py && /Users/openclaw/.espressif/python_env/idf5.5_py3.9_env/bin/python /Users/openclaw/esp/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/partition_table/partition-table.bin /Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/tesla_ble_dash.bin
+tesla_ble_dash.bin binary size 0xb04d0 bytes. Smallest app partition is 0xe0000 bytes. 0x2fb30 bytes (21%) free.
+[2/5] Performing build step for 'bootloader'
+[1/1] cd /Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/bootloader/esp-idf/esptool_py && /Users/openclaw/.espressif/python_env/idf5.5_py3.9_env/bin/python /Users/openclaw/esp/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/bootloader/bootloader.bin
+Bootloader binary size 0x5160 bytes. 0x2ea0 bytes (36%) free.
+[3/5] No install step for 'bootloader'
+[4/5] Completed 'bootloader'
+[4/5] cd /Users/openclaw/esp/esp-idf-v5.5.4/components/esptool_py && /opt/homebrew/bin/cmake -D IDF_PATH=/Users/openclaw/esp/esp-idf-v5.5.4 -D "SERIAL_TOOL=/Users/openclaw/.espressif/python_env/idf5.5_py3.9_env/bin/python;;/Users/openclaw/esp/esp-idf-v5.5.4/components/esptool_py/esptool/esptool.py;--chip;esp32s3" -D "SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args" -D WORKING_DIRECTORY=/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build -P /Users/openclaw/esp/esp-idf-v5.5.4/components/esptool_py/run_serial_tool.cmake
+esptool.py --chip esp32s3 -p /dev/cu.usbmodem5A840266071 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 40m --flash_size 2MB 0x0 bootloader/bootloader.bin 0x20000 tesla_ble_dash.bin 0x8000 partition_table/partition-table.bin
+esptool.py v4.12.dev3
+Serial port /dev/cu.usbmodem5A840266071
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+Crystal is 40MHz
+MAC: 30:ed:a0:bc:48:70
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x00005fff...
+Flash will be erased from 0x00020000 to 0x000d0fff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+SHA digest in image updated
+Compressed 20832 bytes to 13353...
+Writing at 0x00000000... (100 %)
+Wrote 20832 bytes (13353 compressed) at 0x00000000 in 0.8 seconds (effective 200.6 kbit/s)...
+Hash of data verified.
+Compressed 722128 bytes to 413321...
+Writing at 0x00020000... (3 %)
+Writing at 0x0002c82d... (7 %)
+Writing at 0x00037688... (11 %)
+Writing at 0x000404ae... (15 %)
+Writing at 0x0004e27f... (19 %)
+Writing at 0x0005418b... (23 %)
+Writing at 0x0005a4f9... (26 %)
+Writing at 0x00060d6d... (30 %)
+Writing at 0x00066fdd... (34 %)
+Writing at 0x0006d1b2... (38 %)
+Writing at 0x00072e03... (42 %)
+Writing at 0x000787d4... (46 %)
+Writing at 0x0007e240... (50 %)
+Writing at 0x00084597... (53 %)
+Writing at 0x0008a541... (57 %)
+Writing at 0x000905bf... (61 %)
+Writing at 0x00096446... (65 %)
+Writing at 0x0009c3a1... (69 %)
+Writing at 0x000a2268... (73 %)
+Writing at 0x000a7ebd... (76 %)
+Writing at 0x000ad718... (80 %)
+Writing at 0x000b652d... (84 %)
+Writing at 0x000bcdbc... (88 %)
+Writing at 0x000c2279... (92 %)
+Writing at 0x000c830d... (96 %)
+Writing at 0x000ce8d9... (100 %)
+Wrote 722128 bytes (413321 compressed) at 0x00020000 in 10.0 seconds (effective 578.0 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 106...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (106 compressed) at 0x00008000 in 0.1 seconds (effective 234.1 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...

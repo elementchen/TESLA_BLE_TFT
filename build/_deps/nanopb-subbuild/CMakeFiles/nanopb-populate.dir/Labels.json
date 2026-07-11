@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/CMakeFiles/nanopb-populate"
+		},
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/CMakeFiles/nanopb-populate.rule"
+		},
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/CMakeFiles/nanopb-populate-complete.rule"
+		},
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-build.rule"
+		},
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-configure.rule"
+		},
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-download.rule"
+		},
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-install.rule"
+		},
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-mkdir.rule"
+		},
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-patch.rule"
+		},
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-test.rule"
+		},
+		{
+			"file" : "/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"nanopb-populate"
+		],
+		"name" : "nanopb-populate"
+	}
+}

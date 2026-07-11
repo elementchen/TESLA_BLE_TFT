@@ -1,0 +1,5 @@
+# Custom partition table - larger NVS for Tesla BLE sessions
+# Name,   Type, SubType, Offset,   Size
+nvs,      data, nvs,     0x9000,   0xC000
+phy_init, data, phy,     0x15000,  0x1000
+factory,  app,  factory, 0x20000,  0xE0000

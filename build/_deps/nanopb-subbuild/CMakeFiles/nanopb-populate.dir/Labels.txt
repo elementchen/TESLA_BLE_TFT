@@ -1,0 +1,14 @@
+# Target labels
+ nanopb-populate
+# Source files and their labels
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/CMakeFiles/nanopb-populate
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/CMakeFiles/nanopb-populate.rule
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/CMakeFiles/nanopb-populate-complete.rule
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-build.rule
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-configure.rule
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-download.rule
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-install.rule
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-mkdir.rule
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-patch.rule
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-test.rule
+/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/nanopb-populate-prefix/src/nanopb-populate-stamp/nanopb-populate-update.rule
