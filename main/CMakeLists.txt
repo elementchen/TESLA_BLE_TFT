@@ -13,4 +13,5 @@ idf_component_register(
         esp_timer
         mbedtls
         tesla-ble
+        esp_lcd
 )
