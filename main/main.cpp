@@ -41,10 +41,10 @@ static bool      pending_data_ready = false;
 static TickType_t last_poll_time = 0;
 static bool      paired = false;
 
-// OLED I2C 引脚（通过 sdkconfig 可配置）
-#define OLED_SDA   CONFIG_OLED_SDA_GPIO
-#define OLED_SCL   CONFIG_OLED_SCL_GPIO
-#define OLED_RESET CONFIG_OLED_RESET_GPIO
+// ST7789 SPI LCD 引脚已直接在 display.cpp 中定义，在此传入默认值 0 即可
+#define OLED_SDA   0
+#define OLED_SCL   0
+#define OLED_RESET 0
 
 // Pairing reset button: long-press GPIO4 for 5s to clear keys and re-pair
 #define PAIR_RESET_GPIO GPIO_NUM_4
