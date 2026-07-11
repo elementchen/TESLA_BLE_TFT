@@ -29,9 +29,7 @@ private:
     bool initialized_ = false;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
-    uint16_t *framebuf_ = nullptr;
 
-    void flush();
     void fill_rect(int x, int y, int w, int h, uint16_t color);
     void draw_char_scaled(int x, int y, char c, int scale, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
     void draw_text_scaled(int x, int y, const char *text, int len, int scale, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
