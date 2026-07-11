@@ -7,7 +7,7 @@ set CMAKE=C:\Espressif\tools\cmake\3.30.2\bin\cmake.exe
 set NINJA=C:\Espressif\tools\ninja\1.12.1\ninja.exe
 set PATH=%TOOLCHAIN%;%IDF_PATH%\tools;C:\Espressif\tools\idf-git\2.44.0\cmd;%CMAKE%\..;%NINJA%\..;%PATH%
 set PYTHON=%IDP_PYTHON%
-cd /d e:\AI_coding_test\_ClaudeCode\Tesla_BLE_Dash
+cd /d "%~dp0"
 %PYTHON% %IDF_PATH%\tools\idf.py set-target esp32s3
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 %PYTHON% %IDF_PATH%\tools\idf.py build
