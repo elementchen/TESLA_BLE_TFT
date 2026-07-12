@@ -26,7 +26,7 @@ static constexpr const char *TAG = "TeslaDash";
 #endif
 
 // DriveState 轮询间隔（行车中 vs 停车）
-static constexpr int POLL_INTERVAL_ACTIVE_MS = 2000;
+static constexpr int POLL_INTERVAL_ACTIVE_MS = 250;
 static constexpr int POLL_INTERVAL_IDLE_MS  = 10000;
 
 // ---------- 全局对象 ----------
