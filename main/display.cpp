@@ -184,7 +184,7 @@ bool Display::init(int sda, int scl, int reset) {
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_));
     ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_, true));
     ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, false, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true)); // 反色适配
+    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, false)); // 正常彩色极性，物理黑底显示
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
     initialized_ = true;
