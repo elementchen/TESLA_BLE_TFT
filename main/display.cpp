@@ -131,7 +131,7 @@ void Display::draw_char_8x16(int x, int y, char c, uint16_t color, uint16_t bg, 
     for (int row = 0; row < 16; row++) {
         uint8_t bits = glyph[row];
         for (int col = 0; col < 8; col++) {
-            if (bits & (0x80 >> col)) {
+            if (bits & (0x01 << col)) {
                 fill_rect(x + col * scale, y + row * scale, scale, scale, color);
             } else if (use_bg) {
                 fill_rect(x + col * scale, y + row * scale, scale, scale, bg);
@@ -156,7 +156,7 @@ void Display::draw_char_24x48(int x, int y, char c, uint16_t color) {
                             ((uint32_t)glyph[row * 3 + 1] << 8) | 
                             (uint32_t)glyph[row * 3 + 2];
         for (int col = 0; col < 24; col++) {
-            if (row_data & (0x800000 >> col)) {
+            if (row_data & (0x000001 << col)) {
                 fill_rect(x + col, y + row, 1, 1, color);
             }
         }
