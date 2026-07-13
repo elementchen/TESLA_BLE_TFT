@@ -381,12 +381,10 @@ extern "C" void app_main() {
         }
 
         TickType_t now = xTaskGetTickCount();
-        bool just_reconnected = (now - last_poll_time) < pdMS_TO_TICKS(5000);
 
         // Only poll if vehicle is known awake, OR if we haven't received any
-        // status yet (first connection). Skip polling after reconnect until
-        // vehicle wakes up, to avoid flooding the command queue.
-        if (ble_adapter->is_connected() && !just_reconnected) {
+        // status yet (first connection).
+        if (ble_adapter->is_connected()) {
             int interval = current_data.vehicle_awake ? POLL_INTERVAL_ACTIVE_MS
                                                        : POLL_INTERVAL_IDLE_MS;
             if ((now - last_poll_time) >= pdMS_TO_TICKS(interval)) {
