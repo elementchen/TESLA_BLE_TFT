@@ -182,8 +182,8 @@ bool Display::init(int sda, int scl, int reset) {
 
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_));
-    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, false, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_, false));
+    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, false, false));
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true)); // 反色适配
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
@@ -192,7 +192,7 @@ bool Display::init(int sda, int scl, int reset) {
     // 清屏涂黑
     clear();
     
-    ESP_LOGI(TAG, "ST7789 320x240 LCD initialization complete (No-cache Mode)");
+    ESP_LOGI(TAG, "ST7789 240x296 LCD initialization complete (No-cache Mode)");
     return true;
 }
 
@@ -212,8 +212,8 @@ void Display::fill_rect(int x, int y, int w, int h, uint16_t color) {
     // 大端序翻转处理，保证颜色完美呈现
     uint16_t flipped_color = (color >> 8) | (color << 8);
 
-    // 在内部 SRAM (BSS段) 中静态声明一行数据缓冲区，最大支持 320 像素宽
-    static uint16_t fill_buf[320];
+    // 在内部 SRAM (BSS段) 中静态声明一行数据缓冲区，最大支持 240 像素宽
+    static uint16_t fill_buf[240];
     for (int i = 0; i < w; i++) {
         fill_buf[i] = flipped_color;
     }
@@ -261,17 +261,17 @@ void Display::show_splash() {
     if (!initialized_) return;
     clear();
 
-    // Tesla Logo (红色, 大号字体)
+    // Tesla Logo (红色, 大号字体, 下移至 100)
     int xs = (SCREEN_W - 174) / 2;
-    draw_text_scaled(xs, 75, "Tesla", 5, 6, 0xF800); // 赛道红
+    draw_text_scaled(xs, 100, "Tesla", 5, 6, 0xF800);
 
-    // "BLE DASH" (白色, 中号字体)
+    // "BLE DASH" (白色, 中号字体, 下移至 170)
     xs = (SCREEN_W - 94) / 2;
-    draw_text_scaled(xs, 140, "BLE DASH", 8, 2, 0xFFFF);
+    draw_text_scaled(xs, 170, "BLE DASH", 8, 2, 0xFFFF);
 
     // 底部小字
     xs = (SCREEN_W - 130) / 2;
-    draw_text_scaled(xs, 200, "Initializing BLE...", 19, 1, 0x7BEF);
+    draw_text_scaled(xs, 245, "Initializing BLE...", 19, 1, 0x7BEF);
 }
 
 void Display::show_pairing(const std::string &msg) {
@@ -282,23 +282,23 @@ void Display::show_pairing(const std::string &msg) {
     int xs = (SCREEN_W - 142) / 2;
     draw_text_scaled(xs, 25, "PAIRING MODE", 12, 2, 0xF800);
 
-    // 绘制一把卡片钥匙 (居中于 320px，宽 100)
-    fill_rect(110, 75, 100, 60, 0x18C3);
+    // 绘制一把卡片钥匙 (竖屏居中于 240px，高移至 95-155)
+    fill_rect(70, 95, 100, 60, 0x18C3);
     for (int i = 0; i < 2; i++) {
-        fill_rect(112 + i, 77 + i, 96 - 2 * i, 1, 0x7BEF);
-        fill_rect(112 + i, 132 - i, 96 - 2 * i, 1, 0x7BEF);
-        fill_rect(112 + i, 77 + i, 1, 56 - 2 * i, 0x7BEF);
-        fill_rect(207 - i, 77 + i, 1, 56 - 2 * i, 0x7BEF);
+        fill_rect(72 + i, 97 + i, 96 - 2 * i, 1, 0x7BEF);
+        fill_rect(72 + i, 152 - i, 96 - 2 * i, 1, 0x7BEF);
+        fill_rect(72 + i, 97 + i, 1, 56 - 2 * i, 0x7BEF);
+        fill_rect(167 - i, 97 + i, 1, 56 - 2 * i, 0x7BEF);
     }
-    draw_text_scaled(145, 95, "NFC", 3, 2, 0xFFFF);
+    draw_text_scaled(105, 115, "NFC", 3, 2, 0xFFFF);
 
-    // 底部刷卡提示
+    // 底部刷卡提示 (y=200)
     xs = (SCREEN_W - (int)(msg.size() * 12 - 2)) / 2;
-    draw_text_scaled(xs >= 0 ? xs : 0, 165, msg.c_str(), msg.size(), 2, 0xFFFF);
+    draw_text_scaled(xs >= 0 ? xs : 0, 200, msg.c_str(), msg.size(), 2, 0xFFFF);
 
-    // 重置按键提示
+    // 重置按键提示 (y=250)
     xs = (SCREEN_W - 166) / 2;
-    draw_text_scaled(xs, 210, "Hold Boot button to cancel", 26, 1, 0x7BEF);
+    draw_text_scaled(xs, 250, "Hold Boot button to cancel", 26, 1, 0x7BEF);
 }
 
 void Display::show_error(const std::string &msg) {
@@ -306,21 +306,21 @@ void Display::show_error(const std::string &msg) {
     clear();
 
     int xs = (SCREEN_W - 60) / 2;
-    draw_text_scaled(xs, 40, "ERROR", 5, 2, 0xF800);
+    draw_text_scaled(xs, 60, "ERROR", 5, 2, 0xF800);
 
     std::string line1 = msg.substr(0, 18);
     std::string line2 = msg.size() > 18 ? msg.substr(18, 18) : "";
 
     xs = (SCREEN_W - (int)(line1.size() * 12 - 2)) / 2;
-    draw_text_scaled(xs >= 0 ? xs : 0, 100, line1.c_str(), line1.size(), 2, 0xFFFF);
+    draw_text_scaled(xs >= 0 ? xs : 0, 120, line1.c_str(), line1.size(), 2, 0xFFFF);
 
     if (!line2.empty()) {
         xs = (SCREEN_W - (int)(line2.size() * 12 - 2)) / 2;
-        draw_text_scaled(xs >= 0 ? xs : 0, 130, line2.c_str(), line2.size(), 2, 0xFFFF);
+        draw_text_scaled(xs >= 0 ? xs : 0, 150, line2.c_str(), line2.size(), 2, 0xFFFF);
     }
 
     xs = (SCREEN_W - 124) / 2;
-    draw_text_scaled(xs, 190, "Check connections", 17, 1, 0x7BEF);
+    draw_text_scaled(xs, 230, "Check connections", 17, 1, 0x7BEF);
 }
 
 void Display::show_text_lines(const std::string &line1, const std::string &line2,
@@ -346,7 +346,7 @@ void Display::show_text_lines(const std::string &line1, const std::string &line2
 
 void Display::draw_status_bar(const DashData &data) {
     // 绘制一条底部分割线
-    fill_rect(10, 35, 300, 1, 0x18C3);
+    fill_rect(10, 35, 220, 1, 0x18C3);
 
     // 1. 蓝牙连接状态
     uint16_t ble_color = data.ble_connected ? 0x03FF : 0x7BEF; // 蓝色 vs 灰色
@@ -359,13 +359,13 @@ void Display::draw_status_bar(const DashData &data) {
         draw_text_scaled(47, 15, "DISC", 4, 1, 0x7BEF);
     }
 
-    // 2. 车辆唤醒状态 (右移适配 320px)
+    // 2. 车辆唤醒状态 (恢复竖屏坐标)
     uint16_t awake_color = data.vehicle_awake ? 0x07E0 : 0x7BEF; // 绿色 vs 灰色
-    fill_rect(210, 16, 5, 5, awake_color);
+    fill_rect(155, 16, 5, 5, awake_color);
     if (data.vehicle_awake) {
-        draw_text_scaled(220, 15, "VEHICLE AWAKE", 13, 1, 0x07E0);
+        draw_text_scaled(165, 15, "VEHICLE AWAKE", 13, 1, 0x07E0);
     } else {
-        draw_text_scaled(220, 15, "VEHICLE SLEEP", 13, 1, 0x7BEF);
+        draw_text_scaled(165, 15, "VEHICLE SLEEP", 13, 1, 0x7BEF);
     }
 }
 
@@ -382,17 +382,19 @@ void Display::draw_speed(float speed) {
     int total_w = len * (char_w + gap) - gap;
     int xs = (SCREEN_W - total_w) / 2;
 
-    draw_text_scaled(xs, 50, buf, len, 8, 0xFFFF);
+    // 数值下移至 y = 70
+    draw_text_scaled(xs, 70, buf, len, 8, 0xFFFF);
 
+    // 单位下移至 y = 140
     int unit_xs = (SCREEN_W - 46) / 2;
-    draw_text_scaled(unit_xs, 115, "km/h", 4, 2, 0xF800);
+    draw_text_scaled(unit_xs, 140, "km/h", 4, 2, 0xF800);
 }
 
 void Display::draw_energy_bar(float speed) {
-    // y = 138 处的能量进度条 (拓宽至 260 像素)
+    // y = 175 处的能量进度条 (缩短为 180 像素)
     int bar_x = 30;
-    int bar_y = 140;
-    int bar_w = 260;
+    int bar_y = 175;
+    int bar_w = 180;
     int bar_h = 4;
 
     fill_rect(bar_x, bar_y, bar_w, bar_h, 0x18C3);
@@ -414,11 +416,11 @@ void Display::draw_energy_bar(float speed) {
 }
 
 void Display::draw_gears(char gear) {
-    // 档位 P, R, N, D 在 320px 横屏下重新精细定位
+    // 档位 P, R, N, D 恢复 240px 竖屏精确定位 (高度下移至 y = 205)
     char gear_chars[] = {'P', 'R', 'N', 'D'};
-    int gear_x[] = {38, 108, 178, 248};
-    int gear_y = 165;
-    int card_size = 32;
+    int gear_x[] = {30, 82, 134, 186};
+    int gear_y = 205;
+    int card_size = 28;
 
     for (int i = 0; i < 4; i++) {
         char g = gear_chars[i];
@@ -427,10 +429,10 @@ void Display::draw_gears(char gear) {
         if (gear == g) {
             // 当前档位：绘制红色高亮背景卡片，白色文字
             fill_rect(x, gear_y, card_size, card_size, 0xF800);
-            draw_char_scaled(x + 9, gear_y + 6, g, 3, 0xFFFF);
+            draw_char_scaled(x + 7, gear_y + 4, g, 3, 0xFFFF);
         } else {
             // 未选中档位：直接绘制暗灰色文字，无背景
-            draw_char_scaled(x + 9, gear_y + 6, g, 3, 0x5AEB);
+            draw_char_scaled(x + 7, gear_y + 4, g, 3, 0x5AEB);
         }
     }
 }
@@ -447,7 +449,8 @@ void Display::draw_odometer(uint32_t odo) {
     int total_w = len * 12 - 2;
     int xs = (SCREEN_W - total_w) / 2;
 
-    draw_text_scaled(xs, 205, buf, len, 2, 0xCE79);
+    // 里程信息下移至 y = 255 贴合底部
+    draw_text_scaled(xs, 255, buf, len, 2, 0xCE79);
 }
 
 void Display::render_dashboard(const DashData &data) {
