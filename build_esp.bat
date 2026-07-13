@@ -10,4 +10,13 @@ set PYTHON=%IDP_PYTHON%
 cd /d "%~dp0"
 %PYTHON% %IDF_PATH%\tools\idf.py set-target esp32s3
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+%PYTHON% %IDF_PATH%\tools\idf.py fullclean
 %PYTHON% %IDF_PATH%\tools\idf.py build
+
+set VERSION=v1.0.0
+echo Copying compiled binaries to release/%VERSION%...
+if not exist release\%VERSION% mkdir release\%VERSION%
+copy /y build\bootloader\bootloader.bin release\%VERSION%\
+copy /y build\partition_table\partition-table.bin release\%VERSION%\
+copy /y build\tesla_ble_dash.bin release\%VERSION%\
+echo Done!
