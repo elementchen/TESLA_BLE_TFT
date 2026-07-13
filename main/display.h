@@ -34,9 +34,11 @@ private:
 
     void fill_rect(int x, int y, int w, int h, uint16_t color);
     
-    // 高清 Sans-Serif 字体绘制接口 (8x16 与 24x48)
-    void draw_char_8x16(int x, int y, char c, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false, int scale = 1);
-    void draw_text_8x16(int x, int y, const char *text, int len, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false, int scale = 1);
+    // 高清 Sans-Serif 字体绘制接口 (8x16, 16x32 与 24x48)
+    void draw_char_8x16(int x, int y, char c, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
+    void draw_text_8x16(int x, int y, const char *text, int len, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
+    void draw_char_16x32(int x, int y, char c, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
+    void draw_text_16x32(int x, int y, const char *text, int len, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
     void draw_char_24x48(int x, int y, char c, uint16_t color);
     void draw_text_24x48(int x, int y, const char *text, int len, uint16_t color);
     

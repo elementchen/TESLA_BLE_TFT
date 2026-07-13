@@ -96,7 +96,6 @@ bool Display::init(int sda, int scl, int reset) {
     return true;
 }
 
-
 // ─── 绘图基础原语（直接操作 LCD 控制器） ─────────────────────────────
 
 void Display::fill_rect(int x, int y, int w, int h, uint16_t color) {
@@ -123,9 +122,9 @@ void Display::fill_rect(int x, int y, int w, int h, uint16_t color) {
     }
 }
 
-// ─── 高清 Sans-Serif 字体绘制实现 ───────────────────────────────────
+// ─── 高清 Sans-Serif 字体绘制实现 (4-bit 抗锯齿混色，全部 1:1 无缩放) ─────────────────
 
-void Display::draw_char_8x16(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg, int scale) {
+void Display::draw_char_8x16(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg) {
     if (c < 32 || c > 126) c = '?';
     const uint8_t *glyph = font8x16_aa[c - 32];
     
@@ -148,26 +147,72 @@ void Display::draw_char_8x16(int x, int y, char c, uint16_t color, uint16_t bg, 
             }
             
             if (pixel_val == 15) {
-                fill_rect(x + col * scale, y + row * scale, scale, scale, color);
+                fill_rect(x + col, y + row, 1, 1, color);
             } else if (pixel_val > 0) {
                 // 16级抗锯齿混色 (纯黑背景下等同于直接降采样亮度)
                 uint8_t blend_r = (r * pixel_val) / 15;
                 uint8_t blend_g = (g * pixel_val) / 15;
                 uint8_t blend_b = (b * pixel_val) / 15;
                 uint16_t blended_color = (blend_r << 11) | (blend_g << 5) | blend_b;
-                fill_rect(x + col * scale, y + row * scale, scale, scale, blended_color);
+                fill_rect(x + col, y + row, 1, 1, blended_color);
             } else if (use_bg) {
-                fill_rect(x + col * scale, y + row * scale, scale, scale, bg);
+                fill_rect(x + col, y + row, 1, 1, bg);
             }
         }
     }
 }
 
-void Display::draw_text_8x16(int x, int y, const char *text, int len, uint16_t color, uint16_t bg, bool use_bg, int scale) {
+void Display::draw_text_8x16(int x, int y, const char *text, int len, uint16_t color, uint16_t bg, bool use_bg) {
     for (int i = 0; i < len; i++) {
-        int cx = x + i * 8 * scale;
-        if (cx + 8 * scale > SCREEN_W) break;
-        draw_char_8x16(cx, y, text[i], color, bg, use_bg, scale);
+        int cx = x + i * 8;
+        if (cx + 8 > SCREEN_W) break;
+        draw_char_8x16(cx, y, text[i], color, bg, use_bg);
+    }
+}
+
+void Display::draw_char_16x32(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg) {
+    if (c < 32 || c > 126) c = '?';
+    const uint8_t *glyph = font16x32_aa[c - 32];
+    
+    // 前景色的 RGB 分解
+    uint8_t r = (color >> 11) & 0x1F;
+    uint8_t g = (color >> 5) & 0x3F;
+    uint8_t b = color & 0x1F;
+    
+    for (int row = 0; row < 32; row++) {
+        const uint8_t *row_bytes = glyph + row * 8;
+        for (int col = 0; col < 16; col++) {
+            // 直接正向读取
+            int col_read = col;
+            int byte_idx = col_read / 2;
+            uint8_t pixel_val = 0;
+            if (col_read % 2 == 0) {
+                pixel_val = row_bytes[byte_idx] >> 4;
+            } else {
+                pixel_val = row_bytes[byte_idx] & 0x0F;
+            }
+            
+            if (pixel_val == 15) {
+                fill_rect(x + col, y + row, 1, 1, color);
+            } else if (pixel_val > 0) {
+                // 16级抗锯齿混色
+                uint8_t blend_r = (r * pixel_val) / 15;
+                uint8_t blend_g = (g * pixel_val) / 15;
+                uint8_t blend_b = (b * pixel_val) / 15;
+                uint16_t blended_color = (blend_r << 11) | (blend_g << 5) | blend_b;
+                fill_rect(x + col, y + row, 1, 1, blended_color);
+            } else if (use_bg) {
+                fill_rect(x + col, y + row, 1, 1, bg);
+            }
+        }
+    }
+}
+
+void Display::draw_text_16x32(int x, int y, const char *text, int len, uint16_t color, uint16_t bg, bool use_bg) {
+    for (int i = 0; i < len; i++) {
+        int cx = x + i * 16;
+        if (cx + 16 > SCREEN_W) break;
+        draw_char_16x32(cx, y, text[i], color, bg, use_bg);
     }
 }
 
@@ -225,13 +270,13 @@ void Display::show_splash() {
     if (!initialized_) return;
     clear();
 
-    // Tesla Logo (红色, 8x16 放大 3 倍，超细腻)
-    int xs = (SCREEN_W - 5 * 8 * 3) / 2;
-    draw_text_8x16(xs, 75, "Tesla", 5, 0xF800, 0x0000, false, 3);
+    // Tesla Logo (红色, 16x32 原生字模，抗锯齿，超细腻)
+    int xs = (SCREEN_W - 5 * 16) / 2;
+    draw_text_16x32(xs, 75, "Tesla", 5, 0xF800);
 
-    // "BLE DASH" (白色, 8x16 放大 2 倍)
-    xs = (SCREEN_W - 8 * 8 * 2) / 2;
-    draw_text_8x16(xs, 140, "BLE DASH", 8, 0xFFFF, 0x0000, false, 2);
+    // "BLE DASH" (白色, 16x32 原生字模，抗锯齿)
+    xs = (SCREEN_W - 8 * 16) / 2;
+    draw_text_16x32(xs, 140, "BLE DASH", 8, 0xFFFF);
 
     // 底部小字
     xs = (SCREEN_W - 19 * 8) / 2;
@@ -242,9 +287,9 @@ void Display::show_pairing(const std::string &msg) {
     if (!initialized_) return;
     clear();
 
-    // 顶部标题
-    int xs = (SCREEN_W - 12 * 8 * 2) / 2;
-    draw_text_8x16(xs, 25, "PAIRING MODE", 12, 0xF800, 0x0000, false, 2);
+    // 顶部标题 (16x32 原生大字)
+    int xs = (SCREEN_W - 12 * 16) / 2;
+    draw_text_16x32(xs, 25, "PAIRING MODE", 12, 0xF800);
 
     // 绘制一把卡片钥匙 (居中于 320px，宽 100)
     fill_rect(110, 75, 100, 60, 0x18C3);
@@ -256,9 +301,9 @@ void Display::show_pairing(const std::string &msg) {
     }
     draw_text_8x16(148, 97, "NFC", 3, 0xFFFF);
 
-    // 底部刷卡提示
-    xs = (SCREEN_W - (int)(msg.size() * 8)) / 2;
-    draw_text_8x16(xs >= 0 ? xs : 0, 165, msg.c_str(), msg.size(), 0xFFFF);
+    // 底部刷卡提示 (16x32 原生字)
+    xs = (SCREEN_W - (int)(msg.size() * 16)) / 2;
+    draw_text_16x32(xs >= 0 ? xs : 0, 165, msg.c_str(), msg.size(), 0xFFFF);
 
     // 重置按键提示
     xs = (SCREEN_W - 26 * 8) / 2;
@@ -269,8 +314,8 @@ void Display::show_error(const std::string &msg) {
     if (!initialized_) return;
     clear();
 
-    int xs = (SCREEN_W - 5 * 8 * 2) / 2;
-    draw_text_8x16(xs, 40, "ERROR", 5, 0xF800, 0x0000, false, 2);
+    int xs = (SCREEN_W - 5 * 16) / 2;
+    draw_text_16x32(xs, 40, "ERROR", 5, 0xF800);
 
     std::string line1 = msg.substr(0, 18);
     std::string line2 = msg.size() > 18 ? msg.substr(18, 18) : "";
@@ -293,16 +338,16 @@ void Display::show_text_lines(const std::string &line1, const std::string &line2
     clear();
 
     if (!line1.empty()) {
-        int xs = (SCREEN_W - (int)(line1.size() * 8)) / 2;
-        draw_text_8x16(xs >= 0 ? xs : 0, 50, line1.c_str(), line1.size(), 0xFFFF);
+        int xs = (SCREEN_W - (int)(line1.size() * 16)) / 2;
+        draw_text_16x32(xs >= 0 ? xs : 0, 50, line1.c_str(), line1.size(), 0xFFFF);
     }
     if (!line2.empty()) {
-        int xs = (SCREEN_W - (int)(line2.size() * 8)) / 2;
-        draw_text_8x16(xs >= 0 ? xs : 0, 110, line2.c_str(), line2.size(), 0xFFFF);
+        int xs = (SCREEN_W - (int)(line2.size() * 16)) / 2;
+        draw_text_16x32(xs >= 0 ? xs : 0, 110, line2.c_str(), line2.size(), 0xFFFF);
     }
     if (!line3.empty()) {
-        int xs = (SCREEN_W - (int)(line3.size() * 8)) / 2;
-        draw_text_8x16(xs >= 0 ? xs : 0, 170, line3.c_str(), line3.size(), 0xFFFF);
+        int xs = (SCREEN_W - (int)(line3.size() * 16)) / 2;
+        draw_text_16x32(xs >= 0 ? xs : 0, 170, line3.c_str(), line3.size(), 0xFFFF);
     }
 }
 
@@ -389,12 +434,12 @@ void Display::draw_gears(char gear) {
         int x = gear_x[i];
         
         if (gear == g) {
-            // 当前档位：绘制红色高亮背景卡片，配合 8x16 缩放 2 倍 (16x32) 达到高清字体
+            // 当前档位：绘制红色高亮背景卡片，配合 16x32 原生高阶抗锯齿字模 (1:1 绘制，绝无放大虚影)
             fill_rect(x, gear_y, card_size, card_size, 0xF800);
-            draw_char_8x16(x + 8, gear_y, g, 0xFFFF, 0x0000, false, 2);
+            draw_char_16x32(x + 8, gear_y, g, 0xFFFF);
         } else {
             // 未选中档位：直接绘制暗灰色文字，无背景，高清细腻
-            draw_char_8x16(x + 8, gear_y, g, 0x5AEB, 0x0000, false, 2);
+            draw_char_16x32(x + 8, gear_y, g, 0x5AEB);
         }
     }
 }
@@ -434,8 +479,8 @@ void Display::render_dashboard(const DashData &data) {
         draw_speed(data.speed_kmh);
         draw_energy_bar(data.speed_kmh);
     } else {
-        int xs = (SCREEN_W - 7 * 8 * 2) / 2;
-        draw_text_8x16(xs, 75, "NO DATA", 7, 0x7BEF, 0x0000, false, 2);
+        int xs = (SCREEN_W - 7 * 16) / 2;
+        draw_text_16x32(xs, 75, "NO DATA", 7, 0x7BEF);
     }
 
     draw_gears(data.gear);
