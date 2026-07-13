@@ -4,6 +4,7 @@ idf_component_register(
         "ble_adapter.cpp"
         "storage_adapter.cpp"
         "display.cpp"
+        "fonts.cpp"
     INCLUDE_DIRS
         "."
     REQUIRES

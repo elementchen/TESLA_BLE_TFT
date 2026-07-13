@@ -20,106 +20,6 @@
 #define DISPLAY_RES             45
 #define DISPLAY_BLK             42
 
-
-// ─── 5x7 Font Table (ASCII 32-126) ────────────────────────────────
-const uint8_t font5x7[][5] = {
-    {0x00,0x00,0x00,0x00,0x00}, // space
-    {0x00,0x00,0x5F,0x00,0x00}, // !
-    {0x00,0x07,0x00,0x07,0x00}, // "
-    {0x14,0x7F,0x14,0x7F,0x14}, // #
-    {0x24,0x2A,0x7F,0x2A,0x12}, // $
-    {0x23,0x13,0x08,0x64,0x62}, // %
-    {0x36,0x49,0x55,0x22,0x50}, // &
-    {0x00,0x05,0x03,0x00,0x00}, // '
-    {0x00,0x1C,0x22,0x41,0x00}, // (
-    {0x00,0x41,0x22,0x1C,0x00}, // )
-    {0x08,0x2A,0x1C,0x2A,0x08}, // *
-    {0x08,0x08,0x3E,0x08,0x08}, // +
-    {0x00,0x50,0x30,0x00,0x00}, // ,
-    {0x08,0x08,0x08,0x08,0x08}, // -
-    {0x00,0x60,0x60,0x00,0x00}, // .
-    {0x20,0x10,0x08,0x04,0x02}, // /
-    {0x3E,0x51,0x49,0x45,0x3E}, // 0
-    {0x00,0x42,0x7F,0x40,0x00}, // 1
-    {0x42,0x61,0x51,0x49,0x46}, // 2
-    {0x21,0x41,0x45,0x4B,0x31}, // 3
-    {0x18,0x14,0x12,0x7F,0x10}, // 4
-    {0x27,0x45,0x45,0x45,0x39}, // 5
-    {0x3C,0x4A,0x49,0x49,0x30}, // 6
-    {0x01,0x71,0x09,0x05,0x03}, // 7
-    {0x36,0x49,0x49,0x49,0x36}, // 8
-    {0x06,0x49,0x49,0x29,0x1E}, // 9
-    {0x00,0x36,0x36,0x00,0x00}, // :
-    {0x00,0x56,0x36,0x00,0x00}, // ;
-    {0x00,0x08,0x14,0x22,0x41}, // <
-    {0x14,0x14,0x14,0x14,0x14}, // =
-    {0x41,0x22,0x14,0x08,0x00}, // >
-    {0x02,0x01,0x51,0x09,0x06}, // ?
-    {0x32,0x49,0x79,0x41,0x3E}, // @
-    {0x7E,0x11,0x11,0x11,0x7E}, // A
-    {0x7F,0x49,0x49,0x49,0x36}, // B
-    {0x3E,0x41,0x41,0x41,0x22}, // C
-    {0x7F,0x41,0x41,0x22,0x1C}, // D
-    {0x7F,0x49,0x49,0x49,0x41}, // E
-    {0x7F,0x09,0x09,0x01,0x01}, // F
-    {0x3E,0x41,0x41,0x51,0x32}, // G
-    {0x7F,0x08,0x08,0x08,0x7F}, // H
-    {0x00,0x41,0x7F,0x41,0x00}, // I
-    {0x20,0x40,0x41,0x3F,0x01}, // J
-    {0x7F,0x08,0x14,0x22,0x41}, // K
-    {0x7F,0x40,0x40,0x40,0x40}, // L
-    {0x7F,0x02,0x04,0x02,0x7F}, // M
-    {0x7F,0x04,0x08,0x10,0x7F}, // N
-    {0x3E,0x41,0x41,0x41,0x3E}, // O
-    {0x7F,0x09,0x09,0x09,0x06}, // P
-    {0x3E,0x41,0x51,0x21,0x5E}, // Q
-    {0x7F,0x09,0x19,0x29,0x46}, // R
-    {0x46,0x49,0x49,0x49,0x31}, // S
-    {0x01,0x01,0x7F,0x01,0x01}, // T
-    {0x3F,0x40,0x40,0x40,0x3F}, // U
-    {0x1F,0x20,0x40,0x20,0x1F}, // V
-    {0x7F,0x20,0x18,0x20,0x7F}, // W
-    {0x63,0x14,0x08,0x14,0x63}, // X
-    {0x03,0x04,0x78,0x04,0x03}, // Y
-    {0x61,0x51,0x49,0x45,0x43}, // Z
-    {0x00,0x00,0x7F,0x41,0x41}, // [
-    {0x02,0x04,0x08,0x10,0x20}, // backslash
-    {0x41,0x41,0x7F,0x00,0x00}, // ]
-    {0x04,0x02,0x01,0x02,0x04}, // ^
-    {0x40,0x40,0x40,0x40,0x40}, // _
-    {0x00,0x01,0x02,0x04,0x00}, // `
-    {0x20,0x54,0x54,0x54,0x78}, // a
-    {0x7F,0x48,0x44,0x44,0x38}, // b
-    {0x38,0x44,0x44,0x44,0x20}, // c
-    {0x38,0x44,0x44,0x48,0x7F}, // d
-    {0x38,0x54,0x54,0x54,0x18}, // e
-    {0x08,0x7E,0x09,0x01,0x02}, // f
-    {0x08,0x14,0x54,0x54,0x3C}, // g
-    {0x7F,0x08,0x04,0x04,0x78}, // h
-    {0x00,0x44,0x7D,0x40,0x00}, // i
-    {0x20,0x40,0x44,0x3D,0x00}, // j
-    {0x00,0x7F,0x10,0x28,0x44}, // k
-    {0x00,0x41,0x7F,0x40,0x00}, // l
-    {0x7C,0x04,0x18,0x04,0x78}, // m
-    {0x7C,0x08,0x04,0x04,0x78}, // n
-    {0x38,0x44,0x44,0x44,0x38}, // o
-    {0x7C,0x14,0x14,0x14,0x08}, // p
-    {0x08,0x14,0x14,0x18,0x7C}, // q
-    {0x7C,0x08,0x04,0x04,0x08}, // r
-    {0x48,0x54,0x54,0x54,0x20}, // s
-    {0x04,0x3F,0x44,0x40,0x20}, // t
-    {0x3C,0x40,0x40,0x20,0x7C}, // u
-    {0x1C,0x20,0x40,0x20,0x1C}, // v
-    {0x3C,0x40,0x30,0x40,0x3C}, // w
-    {0x44,0x28,0x10,0x28,0x44}, // x
-    {0x0C,0x50,0x50,0x50,0x3C}, // y
-    {0x44,0x64,0x54,0x4C,0x44}, // z
-    {0x00,0x08,0x36,0x41,0x00}, // {
-    {0x00,0x00,0x7F,0x00,0x00}, // |
-    {0x00,0x41,0x36,0x08,0x00}, // }
-    {0x08,0x08,0x2A,0x1C,0x08}, // ~
-};
-
 Display::~Display() {
     if (panel_) {
         esp_lcd_panel_del(panel_);
@@ -196,7 +96,9 @@ bool Display::init(int sda, int scl, int reset) {
     return true;
 }
 
-
+void Display::flush() {
+    // 兼容函数，在直写模式下不执行任何操作
+}
 
 // ─── 绘图基础原语（直接操作 LCD 控制器） ─────────────────────────────
 
@@ -224,30 +126,51 @@ void Display::fill_rect(int x, int y, int w, int h, uint16_t color) {
     }
 }
 
-void Display::draw_char_scaled(int x, int y, char c, int scale, uint16_t color, uint16_t bg, bool use_bg) {
+// ─── 高清 Sans-Serif 字体绘制实现 ───────────────────────────────────
+
+void Display::draw_char_8x16(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg, int scale) {
     if (c < 32 || c > 126) c = '?';
-    const uint8_t *glyph = font5x7[c - 32];
-    for (int col = 0; col < 5; col++) {
-        uint8_t bits = glyph[col];
-        for (int row = 0; row < 7; row++) {
-            if (bits & (1 << row)) {
+    const uint8_t *glyph = font8x16[c - 32];
+    for (int row = 0; row < 16; row++) {
+        uint8_t bits = glyph[row];
+        for (int col = 0; col < 8; col++) {
+            if (bits & (0x80 >> col)) {
                 fill_rect(x + col * scale, y + row * scale, scale, scale, color);
             } else if (use_bg) {
                 fill_rect(x + col * scale, y + row * scale, scale, scale, bg);
             }
         }
     }
-    // 字符间距列
-    if (use_bg) {
-        fill_rect(x + 5 * scale, y, scale, 7 * scale, bg);
+}
+
+void Display::draw_text_8x16(int x, int y, const char *text, int len, uint16_t color, uint16_t bg, bool use_bg, int scale) {
+    for (int i = 0; i < len; i++) {
+        int cx = x + i * 8 * scale;
+        if (cx + 8 * scale > SCREEN_W) break;
+        draw_char_8x16(cx, y, text[i], color, bg, use_bg, scale);
     }
 }
 
-void Display::draw_text_scaled(int x, int y, const char *text, int len, int scale, uint16_t color, uint16_t bg, bool use_bg) {
+void Display::draw_char_24x48(int x, int y, char c, uint16_t color) {
+    int idx = get_font24x48_index(c);
+    const uint8_t *glyph = font24x48_nums[idx];
+    for (int row = 0; row < 48; row++) {
+        uint32_t row_data = ((uint32_t)glyph[row * 3] << 16) | 
+                            ((uint32_t)glyph[row * 3 + 1] << 8) | 
+                            (uint32_t)glyph[row * 3 + 2];
+        for (int col = 0; col < 24; col++) {
+            if (row_data & (0x800000 >> col)) {
+                fill_rect(x + col, y + row, 1, 1, color);
+            }
+        }
+    }
+}
+
+void Display::draw_text_24x48(int x, int y, const char *text, int len, uint16_t color) {
     for (int i = 0; i < len; i++) {
-        int cx = x + i * 6 * scale;
-        if (cx + 5 * scale >= SCREEN_W) break;
-        draw_char_scaled(cx, y, text[i], scale, color, bg, use_bg);
+        int cx = x + i * 24;
+        if (cx + 24 > SCREEN_W) break;
+        draw_char_24x48(cx, y, text[i], color);
     }
 }
 
@@ -261,17 +184,17 @@ void Display::show_splash() {
     if (!initialized_) return;
     clear();
 
-    // Tesla Logo (红色, 大号字体)
-    int xs = (SCREEN_W - 174) / 2;
-    draw_text_scaled(xs, 75, "Tesla", 5, 6, 0xF800); // 赛道红
+    // Tesla Logo (红色, 8x16 放大 3 倍，超细腻)
+    int xs = (SCREEN_W - 5 * 8 * 3) / 2;
+    draw_text_8x16(xs, 75, "Tesla", 5, 0xF800, 0x0000, false, 3);
 
-    // "BLE DASH" (白色, 中号字体)
-    xs = (SCREEN_W - 94) / 2;
-    draw_text_scaled(xs, 140, "BLE DASH", 8, 2, 0xFFFF);
+    // "BLE DASH" (白色, 8x16 放大 2 倍)
+    xs = (SCREEN_W - 8 * 8 * 2) / 2;
+    draw_text_8x16(xs, 140, "BLE DASH", 8, 0xFFFF, 0x0000, false, 2);
 
     // 底部小字
-    xs = (SCREEN_W - 130) / 2;
-    draw_text_scaled(xs, 200, "Initializing BLE...", 19, 1, 0x7BEF);
+    xs = (SCREEN_W - 19 * 8) / 2;
+    draw_text_8x16(xs, 200, "Initializing BLE...", 19, 0x7BEF);
 }
 
 void Display::show_pairing(const std::string &msg) {
@@ -279,8 +202,8 @@ void Display::show_pairing(const std::string &msg) {
     clear();
 
     // 顶部标题
-    int xs = (SCREEN_W - 142) / 2;
-    draw_text_scaled(xs, 25, "PAIRING MODE", 12, 2, 0xF800);
+    int xs = (SCREEN_W - 12 * 8 * 2) / 2;
+    draw_text_8x16(xs, 25, "PAIRING MODE", 12, 0xF800, 0x0000, false, 2);
 
     // 绘制一把卡片钥匙 (居中于 320px，宽 100)
     fill_rect(110, 75, 100, 60, 0x18C3);
@@ -290,37 +213,37 @@ void Display::show_pairing(const std::string &msg) {
         fill_rect(112 + i, 77 + i, 1, 56 - 2 * i, 0x7BEF);
         fill_rect(207 - i, 77 + i, 1, 56 - 2 * i, 0x7BEF);
     }
-    draw_text_scaled(145, 95, "NFC", 3, 2, 0xFFFF);
+    draw_text_8x16(148, 97, "NFC", 3, 0xFFFF);
 
     // 底部刷卡提示
-    xs = (SCREEN_W - (int)(msg.size() * 12 - 2)) / 2;
-    draw_text_scaled(xs >= 0 ? xs : 0, 165, msg.c_str(), msg.size(), 2, 0xFFFF);
+    xs = (SCREEN_W - (int)(msg.size() * 8)) / 2;
+    draw_text_8x16(xs >= 0 ? xs : 0, 165, msg.c_str(), msg.size(), 0xFFFF);
 
     // 重置按键提示
-    xs = (SCREEN_W - 166) / 2;
-    draw_text_scaled(xs, 210, "Hold Boot button to cancel", 26, 1, 0x7BEF);
+    xs = (SCREEN_W - 26 * 8) / 2;
+    draw_text_8x16(xs, 210, "Hold Boot button to cancel", 26, 0x7BEF);
 }
 
 void Display::show_error(const std::string &msg) {
     if (!initialized_) return;
     clear();
 
-    int xs = (SCREEN_W - 60) / 2;
-    draw_text_scaled(xs, 40, "ERROR", 5, 2, 0xF800);
+    int xs = (SCREEN_W - 5 * 8 * 2) / 2;
+    draw_text_8x16(xs, 40, "ERROR", 5, 0xF800, 0x0000, false, 2);
 
     std::string line1 = msg.substr(0, 18);
     std::string line2 = msg.size() > 18 ? msg.substr(18, 18) : "";
 
-    xs = (SCREEN_W - (int)(line1.size() * 12 - 2)) / 2;
-    draw_text_scaled(xs >= 0 ? xs : 0, 100, line1.c_str(), line1.size(), 2, 0xFFFF);
+    xs = (SCREEN_W - (int)(line1.size() * 8)) / 2;
+    draw_text_8x16(xs >= 0 ? xs : 0, 100, line1.c_str(), line1.size(), 0xFFFF);
 
     if (!line2.empty()) {
-        xs = (SCREEN_W - (int)(line2.size() * 12 - 2)) / 2;
-        draw_text_scaled(xs >= 0 ? xs : 0, 130, line2.c_str(), line2.size(), 2, 0xFFFF);
+        xs = (SCREEN_W - (int)(line2.size() * 8)) / 2;
+        draw_text_8x16(xs >= 0 ? xs : 0, 130, line2.c_str(), line2.size(), 0xFFFF);
     }
 
-    xs = (SCREEN_W - 124) / 2;
-    draw_text_scaled(xs, 190, "Check connections", 17, 1, 0x7BEF);
+    xs = (SCREEN_W - 17 * 8) / 2;
+    draw_text_8x16(xs, 190, "Check connections", 17, 0x7BEF);
 }
 
 void Display::show_text_lines(const std::string &line1, const std::string &line2,
@@ -329,16 +252,16 @@ void Display::show_text_lines(const std::string &line1, const std::string &line2
     clear();
 
     if (!line1.empty()) {
-        int xs = (SCREEN_W - (int)(line1.size() * 12 - 2)) / 2;
-        draw_text_scaled(xs >= 0 ? xs : 0, 50, line1.c_str(), line1.size(), 2, 0xFFFF);
+        int xs = (SCREEN_W - (int)(line1.size() * 8)) / 2;
+        draw_text_8x16(xs >= 0 ? xs : 0, 50, line1.c_str(), line1.size(), 0xFFFF);
     }
     if (!line2.empty()) {
-        int xs = (SCREEN_W - (int)(line2.size() * 12 - 2)) / 2;
-        draw_text_scaled(xs >= 0 ? xs : 0, 110, line2.c_str(), line2.size(), 2, 0xFFFF);
+        int xs = (SCREEN_W - (int)(line2.size() * 8)) / 2;
+        draw_text_8x16(xs >= 0 ? xs : 0, 110, line2.c_str(), line2.size(), 0xFFFF);
     }
     if (!line3.empty()) {
-        int xs = (SCREEN_W - (int)(line3.size() * 12 - 2)) / 2;
-        draw_text_scaled(xs >= 0 ? xs : 0, 170, line3.c_str(), line3.size(), 2, 0xFFFF);
+        int xs = (SCREEN_W - (int)(line3.size() * 8)) / 2;
+        draw_text_8x16(xs >= 0 ? xs : 0, 170, line3.c_str(), line3.size(), 0xFFFF);
     }
 }
 
@@ -352,20 +275,20 @@ void Display::draw_status_bar(const DashData &data) {
     uint16_t ble_color = data.ble_connected ? 0x03FF : 0x7BEF; // 蓝色 vs 灰色
     // 画一个状态指示圆点
     fill_rect(15, 16, 5, 5, ble_color);
-    draw_text_scaled(25, 15, "BLE", 3, 1, ble_color);
+    draw_text_8x16(25, 15, "BLE", 3, ble_color);
     if (data.ble_connected) {
-        draw_text_scaled(47, 15, "OK", 2, 1, 0x07E0); // 绿色 OK
+        draw_text_8x16(53, 15, "OK", 2, 0x07E0); // 绿色 OK
     } else {
-        draw_text_scaled(47, 15, "DISC", 4, 1, 0x7BEF);
+        draw_text_8x16(53, 15, "DISC", 4, 0x7BEF);
     }
 
     // 2. 车辆唤醒状态 (右移适配 320px)
     uint16_t awake_color = data.vehicle_awake ? 0x07E0 : 0x7BEF; // 绿色 vs 灰色
     fill_rect(210, 16, 5, 5, awake_color);
     if (data.vehicle_awake) {
-        draw_text_scaled(220, 15, "VEHICLE AWAKE", 13, 1, 0x07E0);
+        draw_text_8x16(220, 15, "VEHICLE AWAKE", 13, 0x07E0);
     } else {
-        draw_text_scaled(220, 15, "VEHICLE SLEEP", 13, 1, 0x7BEF);
+        draw_text_8x16(220, 15, "VEHICLE SLEEP", 13, 0x7BEF);
     }
 }
 
@@ -377,15 +300,15 @@ void Display::draw_speed(float speed) {
     char buf[8];
     int len = snprintf(buf, sizeof(buf), "%d", speed_int);
 
-    int char_w = 40;
-    int gap = 8;
-    int total_w = len * (char_w + gap) - gap;
+    // 使用科技感 24x48 高保真数字字库，时速极度圆滑
+    int total_w = len * 24;
     int xs = (SCREEN_W - total_w) / 2;
 
-    draw_text_scaled(xs, 50, buf, len, 8, 0xFFFF);
+    draw_text_24x48(xs, 50, buf, len, 0xFFFF);
 
-    int unit_xs = (SCREEN_W - 46) / 2;
-    draw_text_scaled(unit_xs, 115, "km/h", 4, 2, 0xF800);
+    // 单位 "km/h"
+    int unit_xs = (SCREEN_W - 32) / 2;
+    draw_text_8x16(unit_xs, 115, "km/h", 4, 0xF800);
 }
 
 void Display::draw_energy_bar(float speed) {
@@ -425,12 +348,12 @@ void Display::draw_gears(char gear) {
         int x = gear_x[i];
         
         if (gear == g) {
-            // 当前档位：绘制红色高亮背景卡片，白色文字
+            // 当前档位：绘制红色高亮背景卡片，配合 8x16 缩放 2 倍 (16x32) 达到高清字体
             fill_rect(x, gear_y, card_size, card_size, 0xF800);
-            draw_char_scaled(x + 9, gear_y + 6, g, 3, 0xFFFF);
+            draw_char_8x16(x + 8, gear_y, g, 0xFFFF, 0x0000, false, 2);
         } else {
-            // 未选中档位：直接绘制暗灰色文字，无背景
-            draw_char_scaled(x + 9, gear_y + 6, g, 3, 0x5AEB);
+            // 未选中档位：直接绘制暗灰色文字，无背景，高清细腻
+            draw_char_8x16(x + 8, gear_y, g, 0x5AEB, 0x0000, false, 2);
         }
     }
 }
@@ -444,10 +367,10 @@ void Display::draw_odometer(uint32_t odo) {
         len = snprintf(buf, sizeof(buf), "ODO: --- km");
     }
 
-    int total_w = len * 12 - 2;
+    int total_w = len * 8;
     int xs = (SCREEN_W - total_w) / 2;
 
-    draw_text_scaled(xs, 205, buf, len, 2, 0xCE79);
+    draw_text_8x16(xs, 205, buf, len, 0xCE79);
 }
 
 void Display::render_dashboard(const DashData &data) {
@@ -470,8 +393,8 @@ void Display::render_dashboard(const DashData &data) {
         draw_speed(data.speed_kmh);
         draw_energy_bar(data.speed_kmh);
     } else {
-        int xs = (SCREEN_W - 82) / 2;
-        draw_text_scaled(xs, 75, "NO DATA", 7, 2, 0x7BEF);
+        int xs = (SCREEN_W - 7 * 8 * 2) / 2;
+        draw_text_8x16(xs, 75, "NO DATA", 7, 0x7BEF, 0x0000, false, 2);
     }
 
     draw_gears(data.gear);
