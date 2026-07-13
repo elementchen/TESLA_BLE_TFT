@@ -23,8 +23,8 @@ public:
 
 private:
     static constexpr const char *TAG = "Display";
-    static constexpr int SCREEN_W = 240;
-    static constexpr int SCREEN_H = 296;
+    static constexpr int SCREEN_W = 320;
+    static constexpr int SCREEN_H = 240;
 
     bool initialized_ = false;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
