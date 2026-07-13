@@ -1,11 +1,13 @@
 #pragma once
 
 #include "dash_data.h"
+#include "fonts.h"
 #include <string>
 #include <cstdint>
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_vendor.h"
 #include "esp_lcd_panel_ops.h"
+
 
 class Display {
 public:
@@ -31,8 +33,12 @@ private:
     esp_lcd_panel_handle_t panel_ = nullptr;
 
     void fill_rect(int x, int y, int w, int h, uint16_t color);
-    void draw_char_scaled(int x, int y, char c, int scale, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
-    void draw_text_scaled(int x, int y, const char *text, int len, int scale, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
+    
+    // 高清 Sans-Serif 字体绘制接口 (8x16 与 24x48)
+    void draw_char_8x16(int x, int y, char c, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false, int scale = 1);
+    void draw_text_8x16(int x, int y, const char *text, int len, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false, int scale = 1);
+    void draw_char_24x48(int x, int y, char c, uint16_t color);
+    void draw_text_24x48(int x, int y, const char *text, int len, uint16_t color);
     
     // 特斯拉风格 UI 各功能块绘制
     void draw_status_bar(const DashData &data);
@@ -45,6 +51,3 @@ private:
     bool last_connected_ = false;
     bool first_render_ = true;
 };
-
-// 5x7 字体字模声明
-extern const uint8_t font5x7[][5];
