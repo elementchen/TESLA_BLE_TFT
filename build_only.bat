@@ -7,3 +7,12 @@ set PATH=%TOOLCHAIN%;%IDF_PATH%\tools;C:\Espressif\tools\idf-git\2.44.0\cmd;%PAT
 set PYTHON=%IDP_PYTHON%
 cd /d "%~dp0"
 %PYTHON% %IDF_PATH%\tools\idf.py build
+
+set VERSION=v1.0.0
+echo Copying compiled binaries to release/%VERSION%...
+if not exist release\%VERSION% mkdir release\%VERSION%
+copy /y build\bootloader\bootloader.bin release\%VERSION%\
+copy /y build\partition_table\partition-table.bin release\%VERSION%\
+copy /y build\tesla_ble_dash.bin release\%VERSION%\
+echo Done!
+
