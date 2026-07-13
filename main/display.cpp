@@ -13,12 +13,13 @@
 #include <cstdlib>
 
 // ─── ST7789 SPI LCD 引脚配置 ──────────────────────────────────────
-#define DISPLAY_SPI_SCK_PIN     39
-#define DISPLAY_SPI_MOSI_PIN    40
-#define DISPLAY_DC_PIN          38
+#define DISPLAY_SPI_SCK_PIN     21
+#define DISPLAY_SPI_MOSI_PIN    47
+#define DISPLAY_DC_PIN          40
 #define DISPLAY_SPI_CS_PIN      41
 #define DISPLAY_RES             45
 #define DISPLAY_BLK             42
+
 
 // ─── 5x7 Font Table (ASCII 32-126) ────────────────────────────────
 const uint8_t font5x7[][5] = {
@@ -181,8 +182,8 @@ bool Display::init(int sda, int scl, int reset) {
 
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_));
-    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_, false));
-    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, false, false));
+    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, false, true));
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true)); // 反色适配
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
@@ -191,13 +192,11 @@ bool Display::init(int sda, int scl, int reset) {
     // 清屏涂黑
     clear();
     
-    ESP_LOGI(TAG, "ST7789 240x240 LCD initialization complete (No-cache Mode)");
+    ESP_LOGI(TAG, "ST7789 320x240 LCD initialization complete (No-cache Mode)");
     return true;
 }
 
-void Display::flush() {
-    // 兼容函数，在直写模式下不执行任何操作
-}
+
 
 // ─── 绘图基础原语（直接操作 LCD 控制器） ─────────────────────────────
 
@@ -213,8 +212,8 @@ void Display::fill_rect(int x, int y, int w, int h, uint16_t color) {
     // 大端序翻转处理，保证颜色完美呈现
     uint16_t flipped_color = (color >> 8) | (color << 8);
 
-    // 在内部 SRAM (BSS段) 中静态声明一行数据缓冲区，极大节约堆内存并避免 PSRAM 对齐崩溃
-    static uint16_t fill_buf[240];
+    // 在内部 SRAM (BSS段) 中静态声明一行数据缓冲区，最大支持 320 像素宽
+    static uint16_t fill_buf[320];
     for (int i = 0; i < w; i++) {
         fill_buf[i] = flipped_color;
     }
@@ -283,15 +282,15 @@ void Display::show_pairing(const std::string &msg) {
     int xs = (SCREEN_W - 142) / 2;
     draw_text_scaled(xs, 25, "PAIRING MODE", 12, 2, 0xF800);
 
-    // 绘制一把卡片钥匙
-    fill_rect(70, 75, 100, 60, 0x18C3);
+    // 绘制一把卡片钥匙 (居中于 320px，宽 100)
+    fill_rect(110, 75, 100, 60, 0x18C3);
     for (int i = 0; i < 2; i++) {
-        fill_rect(72 + i, 77 + i, 96 - 2 * i, 1, 0x7BEF);
-        fill_rect(72 + i, 132 - i, 96 - 2 * i, 1, 0x7BEF);
-        fill_rect(72 + i, 77 + i, 1, 56 - 2 * i, 0x7BEF);
-        fill_rect(167 - i, 77 + i, 1, 56 - 2 * i, 0x7BEF);
+        fill_rect(112 + i, 77 + i, 96 - 2 * i, 1, 0x7BEF);
+        fill_rect(112 + i, 132 - i, 96 - 2 * i, 1, 0x7BEF);
+        fill_rect(112 + i, 77 + i, 1, 56 - 2 * i, 0x7BEF);
+        fill_rect(207 - i, 77 + i, 1, 56 - 2 * i, 0x7BEF);
     }
-    draw_text_scaled(105, 95, "NFC", 3, 2, 0xFFFF);
+    draw_text_scaled(145, 95, "NFC", 3, 2, 0xFFFF);
 
     // 底部刷卡提示
     xs = (SCREEN_W - (int)(msg.size() * 12 - 2)) / 2;
@@ -346,25 +345,27 @@ void Display::show_text_lines(const std::string &line1, const std::string &line2
 // ─── 特斯拉仪表盘绘制逻辑 ──────────────────────────────────────────
 
 void Display::draw_status_bar(const DashData &data) {
-    fill_rect(10, 35, 220, 1, 0x18C3);
+    // 绘制一条底部分割线
+    fill_rect(10, 35, 300, 1, 0x18C3);
 
     // 1. 蓝牙连接状态
-    uint16_t ble_color = data.ble_connected ? 0x03FF : 0x7BEF;
+    uint16_t ble_color = data.ble_connected ? 0x03FF : 0x7BEF; // 蓝色 vs 灰色
+    // 画一个状态指示圆点
     fill_rect(15, 16, 5, 5, ble_color);
     draw_text_scaled(25, 15, "BLE", 3, 1, ble_color);
     if (data.ble_connected) {
-        draw_text_scaled(47, 15, "OK", 2, 1, 0x07E0);
+        draw_text_scaled(47, 15, "OK", 2, 1, 0x07E0); // 绿色 OK
     } else {
         draw_text_scaled(47, 15, "DISC", 4, 1, 0x7BEF);
     }
 
-    // 2. 车辆唤醒状态
-    uint16_t awake_color = data.vehicle_awake ? 0x07E0 : 0x7BEF;
-    fill_rect(155, 16, 5, 5, awake_color);
+    // 2. 车辆唤醒状态 (右移适配 320px)
+    uint16_t awake_color = data.vehicle_awake ? 0x07E0 : 0x7BEF; // 绿色 vs 灰色
+    fill_rect(210, 16, 5, 5, awake_color);
     if (data.vehicle_awake) {
-        draw_text_scaled(165, 15, "VEHICLE AWAKE", 13, 1, 0x07E0);
+        draw_text_scaled(220, 15, "VEHICLE AWAKE", 13, 1, 0x07E0);
     } else {
-        draw_text_scaled(165, 15, "VEHICLE SLEEP", 13, 1, 0x7BEF);
+        draw_text_scaled(220, 15, "VEHICLE SLEEP", 13, 1, 0x7BEF);
     }
 }
 
@@ -388,9 +389,10 @@ void Display::draw_speed(float speed) {
 }
 
 void Display::draw_energy_bar(float speed) {
+    // y = 138 处的能量进度条 (拓宽至 260 像素)
     int bar_x = 30;
     int bar_y = 140;
-    int bar_w = 180;
+    int bar_w = 260;
     int bar_h = 4;
 
     fill_rect(bar_x, bar_y, bar_w, bar_h, 0x18C3);
@@ -412,20 +414,23 @@ void Display::draw_energy_bar(float speed) {
 }
 
 void Display::draw_gears(char gear) {
+    // 档位 P, R, N, D 在 320px 横屏下重新精细定位
     char gear_chars[] = {'P', 'R', 'N', 'D'};
-    int gear_x[] = {30, 82, 134, 186};
-    int gear_y = 160;
-    int card_size = 28;
+    int gear_x[] = {38, 108, 178, 248};
+    int gear_y = 165;
+    int card_size = 32;
 
     for (int i = 0; i < 4; i++) {
         char g = gear_chars[i];
         int x = gear_x[i];
         
         if (gear == g) {
+            // 当前档位：绘制红色高亮背景卡片，白色文字
             fill_rect(x, gear_y, card_size, card_size, 0xF800);
-            draw_char_scaled(x + 7, gear_y + 4, g, 3, 0xFFFF);
+            draw_char_scaled(x + 9, gear_y + 6, g, 3, 0xFFFF);
         } else {
-            draw_char_scaled(x + 7, gear_y + 4, g, 3, 0x5AEB);
+            // 未选中档位：直接绘制暗灰色文字，无背景
+            draw_char_scaled(x + 9, gear_y + 6, g, 3, 0x5AEB);
         }
     }
 }
