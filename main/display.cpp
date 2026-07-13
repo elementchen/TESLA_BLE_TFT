@@ -137,8 +137,8 @@ void Display::draw_char_8x16(int x, int y, char c, uint16_t color, uint16_t bg, 
     for (int row = 0; row < 16; row++) {
         const uint8_t *row_bytes = glyph + row * 4;
         for (int col = 0; col < 8; col++) {
-            // 水平镜像纠正：物理列方向反转
-            int col_read = 7 - col;
+            // 直接采用正向像素读取 (4-bit 字模字节流本身即为左至右顺序)
+            int col_read = col;
             int byte_idx = col_read / 2;
             uint8_t pixel_val = 0;
             if (col_read % 2 == 0) {
@@ -183,8 +183,8 @@ void Display::draw_char_24x48(int x, int y, char c, uint16_t color) {
     for (int row = 0; row < 48; row++) {
         const uint8_t *row_bytes = glyph + row * 12;
         for (int col = 0; col < 24; col++) {
-            // 水平镜像纠正：物理列方向反转
-            int col_read = 23 - col;
+            // 直接采用正向像素读取 (4-bit 字模字节流本身即为左至右顺序)
+            int col_read = col;
             int byte_idx = col_read / 2;
             uint8_t pixel_val = 0;
             if (col_read % 2 == 0) {
