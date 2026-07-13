@@ -127,12 +127,35 @@ void Display::fill_rect(int x, int y, int w, int h, uint16_t color) {
 
 void Display::draw_char_8x16(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg, int scale) {
     if (c < 32 || c > 126) c = '?';
-    const uint8_t *glyph = font8x16[c - 32];
+    const uint8_t *glyph = font8x16_aa[c - 32];
+    
+    // 前景色的 RGB 分解
+    uint8_t r = (color >> 11) & 0x1F;
+    uint8_t g = (color >> 5) & 0x3F;
+    uint8_t b = color & 0x1F;
+    
     for (int row = 0; row < 16; row++) {
-        uint8_t bits = glyph[row];
+        const uint8_t *row_bytes = glyph + row * 4;
         for (int col = 0; col < 8; col++) {
-            if (bits & (0x01 << col)) {
+            // 水平镜像纠正：物理列方向反转
+            int col_read = 7 - col;
+            int byte_idx = col_read / 2;
+            uint8_t pixel_val = 0;
+            if (col_read % 2 == 0) {
+                pixel_val = row_bytes[byte_idx] >> 4;
+            } else {
+                pixel_val = row_bytes[byte_idx] & 0x0F;
+            }
+            
+            if (pixel_val == 15) {
                 fill_rect(x + col * scale, y + row * scale, scale, scale, color);
+            } else if (pixel_val > 0) {
+                // 16级抗锯齿混色 (纯黑背景下等同于直接降采样亮度)
+                uint8_t blend_r = (r * pixel_val) / 15;
+                uint8_t blend_g = (g * pixel_val) / 15;
+                uint8_t blend_b = (b * pixel_val) / 15;
+                uint16_t blended_color = (blend_r << 11) | (blend_g << 5) | blend_b;
+                fill_rect(x + col * scale, y + row * scale, scale, scale, blended_color);
             } else if (use_bg) {
                 fill_rect(x + col * scale, y + row * scale, scale, scale, bg);
             }
@@ -150,14 +173,35 @@ void Display::draw_text_8x16(int x, int y, const char *text, int len, uint16_t c
 
 void Display::draw_char_24x48(int x, int y, char c, uint16_t color) {
     int idx = get_font24x48_index(c);
-    const uint8_t *glyph = font24x48_nums[idx];
+    const uint8_t *glyph = font24x48_nums_aa[idx];
+    
+    // 前景色的 RGB 分解
+    uint8_t r = (color >> 11) & 0x1F;
+    uint8_t g = (color >> 5) & 0x3F;
+    uint8_t b = color & 0x1F;
+    
     for (int row = 0; row < 48; row++) {
-        uint32_t row_data = ((uint32_t)glyph[row * 3] << 16) | 
-                            ((uint32_t)glyph[row * 3 + 1] << 8) | 
-                            (uint32_t)glyph[row * 3 + 2];
+        const uint8_t *row_bytes = glyph + row * 12;
         for (int col = 0; col < 24; col++) {
-            if (row_data & (0x000001 << col)) {
+            // 水平镜像纠正：物理列方向反转
+            int col_read = 23 - col;
+            int byte_idx = col_read / 2;
+            uint8_t pixel_val = 0;
+            if (col_read % 2 == 0) {
+                pixel_val = row_bytes[byte_idx] >> 4;
+            } else {
+                pixel_val = row_bytes[byte_idx] & 0x0F;
+            }
+            
+            if (pixel_val == 15) {
                 fill_rect(x + col, y + row, 1, 1, color);
+            } else if (pixel_val > 0) {
+                // 16级抗锯齿混色
+                uint8_t blend_r = (r * pixel_val) / 15;
+                uint8_t blend_g = (g * pixel_val) / 15;
+                uint8_t blend_b = (b * pixel_val) / 15;
+                uint16_t blended_color = (blend_r << 11) | (blend_g << 5) | blend_b;
+                fill_rect(x + col, y + row, 1, 1, blended_color);
             }
         }
     }
