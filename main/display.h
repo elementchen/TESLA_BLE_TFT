@@ -23,7 +23,7 @@ public:
 
 private:
     static constexpr const char *TAG = "Display";
-    static constexpr int SCREEN_W = 240;
+    static constexpr int SCREEN_W = 320;
     static constexpr int SCREEN_H = 240;
 
     bool initialized_ = false;
