@@ -96,9 +96,6 @@ bool Display::init(int sda, int scl, int reset) {
     return true;
 }
 
-void Display::flush() {
-    // 兼容函数，在直写模式下不执行任何操作
-}
 
 // ─── 绘图基础原语（直接操作 LCD 控制器） ─────────────────────────────
 
