@@ -6,4 +6,4 @@ set IDP_PYTHON=C:\Espressif\python_env\idf5.5_py3.10_env\Scripts\python.exe
 set PATH=%TOOLCHAIN%;%IDF_PATH%\tools;C:\Espressif\tools\idf-git\2.44.0\cmd;%PATH%
 set PYTHON=%IDP_PYTHON%
 cd /d "%~dp0"
-%PYTHON% %IDF_PATH%\tools\idf.py -p COM9 flash
+%PYTHON% %IDF_PATH%\tools\idf.py -p COM7 flash
