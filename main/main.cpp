@@ -123,172 +123,136 @@ extern "C" void app_main() {
     // 开机 Splash 停留 2 秒
     vTaskDelay(pdMS_TO_TICKS(2000));
 
-    ESP_LOGI(TAG, "Entering Driving telemetry simulation (No Flicker, 2s per step)...");
+    ESP_LOGI(TAG, "Entering 20 FPS high-fidelity differential telemetry stream...");
 
-    int last_frame_id = -1;
+    int32_t frame_counter = 0;
+
+    // 初始化遥测数据初值
+    current_data.valid = true;
+    current_data.vehicle_awake = true;
+    current_data.ble_connected = false;
+    current_data.locked = true;
+    current_data.odometer_km = 68420;
+    
+    current_data.door_open_fl = false;
+    current_data.door_open_fr = false;
+    current_data.door_open_rl = false;
+    current_data.door_open_rr = false;
+    current_data.door_open_trunk_front = false;
+    current_data.door_open_trunk_rear = false;
+    current_data.charging = false;
+
+    current_data.inside_temp = 22.0f;
+    current_data.outside_temp = 16.0f;
+    current_data.tpms_fl = 2.5f;
+    current_data.tpms_fr = 2.5f;
+    current_data.tpms_rl = 2.4f;
+    current_data.tpms_rr = 2.4f;
+    current_data.battery_level = 78;
+    current_data.battery_range_km = 312.0f;
 
     while (true) {
-        int64_t uptime_ms = esp_timer_get_time() / 1000;
+        // 28 秒一个完整物理周期 (每秒 20 帧，总 560 帧)
+        int loop_frame = frame_counter % 560;
+
+        // ─── 根据时间步平滑推算“高保真数据流” ───
         
-        // 共有 8 个精细驾驶场景，每隔 2000 毫秒 (2秒) 循环轮转，总周期 16 秒
-        int frame_id = (uptime_ms / 2000) % 8;
-
-        // 按需渲染：仅在场景发生改变时重绘一次，2秒内屏幕完全静止，彻底消灭闪烁！
-        if (frame_id != last_frame_id) {
-            last_frame_id = frame_id;
-
-            // ─── A. 初始化全局共有遥测参数 ───
-            current_data.valid = true;
-            current_data.vehicle_awake = true;
-            current_data.ble_connected = false;
-            current_data.odometer_km = 68420;
-            current_data.locked = true;
+        // 阶段 0 (0 - 60 帧，0-3秒)：静止 P 档
+        if (loop_frame >= 0 && loop_frame < 60) {
+            current_data.gear = 'P';
+            current_data.speed_kmh = 0.0f;
+            current_data.motor_power_kw = 0.0f;
             
-            // 锁定在驾驶主页面：确保门全关、不充电
-            current_data.door_open_fl = false;
-            current_data.door_open_fr = false;
-            current_data.door_open_rl = false;
-            current_data.door_open_rr = false;
-            current_data.door_open_trunk_front = false;
-            current_data.door_open_trunk_rear = false;
-            current_data.charging = false;
-
-            // ─── B. 根据 frame_id 加载特定的精细驾驶场景 ───
-            switch (frame_id) {
-                case 0:
-                    // 场景 0：车辆静止，P档 (大字红色 P)
-                    ESP_LOGI(TAG, "SCENARIO 0: Stationary P-Gear Zoom");
-                    current_data.gear = 'P';
-                    current_data.speed_kmh = 0.0f;
-                    current_data.motor_power_kw = 0.0f;
-                    current_data.battery_level = 78;
-                    current_data.battery_range_km = 312.0f;
-                    current_data.inside_temp = 22.0f;
-                    current_data.outside_temp = 16.0f;
-                    current_data.tpms_fl = 2.5f;
-                    current_data.tpms_fr = 2.5f;
-                    current_data.tpms_rl = 2.4f;
-                    current_data.tpms_rr = 2.4f;
-                    break;
-
-                case 1:
-                    // 场景 1：挂入 D 档起步特写 (刚换挡，大字红色 D 特写显示)
-                    ESP_LOGI(TAG, "SCENARIO 1: Shift to D-Gear Zoom");
-                    current_data.gear = 'D'; // P 变 D 触发 2 秒特写大字 D 档显示
-                    current_data.speed_kmh = 0.0f;
-                    current_data.motor_power_kw = 0.0f;
-                    current_data.battery_level = 78;
-                    current_data.battery_range_km = 312.0f;
-                    current_data.inside_temp = 22.0f;
-                    current_data.outside_temp = 16.0f;
-                    current_data.tpms_fl = 2.5f;
-                    current_data.tpms_fr = 2.5f;
-                    current_data.tpms_rl = 2.4f;
-                    current_data.tpms_rr = 2.4f;
-                    break;
-
-                case 2:
-                    // 场景 2：中速加速行驶 (时速 45，红色功率条向右扩展)
-                    ESP_LOGI(TAG, "SCENARIO 2: Running 45 km/h, Accel +28.5kW");
-                    current_data.gear = 'D';
-                    current_data.speed_kmh = 45.0f;       // 大字车速显示 45
-                    current_data.motor_power_kw = 28.5f;  // 加速功率输出
-                    current_data.battery_level = 78;
-                    current_data.battery_range_km = 311.0f;
-                    current_data.inside_temp = 22.1f;
-                    current_data.outside_temp = 16.0f;
-                    current_data.tpms_fl = 2.5f;
-                    current_data.tpms_fr = 2.5f;
-                    current_data.tpms_rl = 2.4f;
-                    current_data.tpms_rr = 2.4f;
-                    break;
-
-                case 3:
-                    // 场景 3：高速强力加速 (时速 110，大片红色功率条，高速运转胎压温升)
-                    ESP_LOGI(TAG, "SCENARIO 3: Running 110 km/h, Power +88.0kW");
-                    current_data.gear = 'D';
-                    current_data.speed_kmh = 110.0f;
-                    current_data.motor_power_kw = 88.0f; // 大负荷
-                    current_data.battery_level = 77;      // 消耗 1%
-                    current_data.battery_range_km = 308.0f;
-                    current_data.inside_temp = 22.3f;
-                    current_data.outside_temp = 16.0f;
-                    // 高速下摩擦轮胎升温上涨！
-                    current_data.tpms_fl = 2.6f;
-                    current_data.tpms_fr = 2.7f;
-                    current_data.tpms_rl = 2.5f;
-                    current_data.tpms_rr = 2.6f;
-                    break;
-
-                case 4:
-                    // 场景 4：松开电门滑行 (时速 98，轻微动能回收，绿色功率条向左伸出)
-                    ESP_LOGI(TAG, "SCENARIO 4: Coasting 98 km/h, Regen -8.2kW");
-                    current_data.gear = 'D';
-                    current_data.speed_kmh = 98.0f;
-                    current_data.motor_power_kw = -8.2f; // 轻微动能回收 (绿色)
-                    current_data.battery_level = 77;
-                    current_data.battery_range_km = 309.0f;
-                    current_data.inside_temp = 22.4f;
-                    current_data.outside_temp = 16.0f;
-                    current_data.tpms_fl = 2.6f;
-                    current_data.tpms_fr = 2.7f;
-                    current_data.tpms_rl = 2.5f;
-                    current_data.tpms_rr = 2.6f;
-                    break;
-
-                case 5:
-                    // 场景 5：重踩刹车减速 (时速 52，大片绿色回收功率条)
-                    ESP_LOGI(TAG, "SCENARIO 5: Braking 52 km/h, Heavy Regen -48.5kW");
-                    current_data.gear = 'D';
-                    current_data.speed_kmh = 52.0f;
-                    current_data.motor_power_kw = -48.5f; // 重回收 (高亮绿)
-                    current_data.battery_level = 77;
-                    current_data.battery_range_km = 310.0f; // 能量回收带来里程稍微增长
-                    current_data.inside_temp = 22.4f;
-                    current_data.outside_temp = 16.0f;
-                    current_data.tpms_fl = 2.6f;
-                    current_data.tpms_fr = 2.7f;
-                    current_data.tpms_rl = 2.5f;
-                    current_data.tpms_rr = 2.6f;
-                    break;
-
-                case 6:
-                    // 场景 6：挂入 R 档倒车 (时速 5，大字红色 R 特写显示)
-                    ESP_LOGI(TAG, "SCENARIO 6: Shift to R-Gear Zoom, Speed 5");
-                    current_data.gear = 'R'; // D 变 R 触发特写大字 R 显示
-                    current_data.speed_kmh = 5.0f;
-                    current_data.motor_power_kw = 12.0f;
-                    current_data.battery_level = 77;
-                    current_data.battery_range_km = 309.0f;
-                    current_data.inside_temp = 22.5f;
-                    current_data.outside_temp = 15.5f;
-                    current_data.tpms_fl = 2.5f;
-                    current_data.tpms_fr = 2.6f;
-                    current_data.tpms_rl = 2.4f;
-                    current_data.tpms_rr = 2.5f;
-                    break;
-
-                case 7:
-                    // 场景 7：停稳挂回 P 档 (大字红色 P，车内空调微微升温)
-                    ESP_LOGI(TAG, "SCENARIO 7: Parking complete, Back to P-Gear");
-                    current_data.gear = 'P';
-                    current_data.speed_kmh = 0.0f;
-                    current_data.motor_power_kw = 0.0f;
-                    current_data.battery_level = 77;
-                    current_data.battery_range_km = 309.0f;
-                    current_data.inside_temp = 23.0f;
-                    current_data.outside_temp = 15.5f;
-                    current_data.tpms_fl = 2.5f;
-                    current_data.tpms_fr = 2.6f;
-                    current_data.tpms_rl = 2.4f;
-                    current_data.tpms_rr = 2.5f;
-                    break;
+            current_data.tpms_fl = 2.5f;
+            current_data.tpms_fr = 2.5f;
+            current_data.tpms_rl = 2.4f;
+            current_data.tpms_rr = 2.4f;
+        }
+        // 阶段 1 (60 - 100 帧，3-5秒)：挂入 D 档起步确认
+        else if (loop_frame >= 60 && loop_frame < 100) {
+            current_data.gear = 'D'; // P 变 D 触发 2 秒特写大字 D 显示
+            current_data.speed_kmh = 0.0f;
+            current_data.motor_power_kw = 0.0f;
+        }
+        // 阶段 2 (100 - 180 帧，5-9秒)：轻油门起步加速到 60 km/h
+        else if (loop_frame >= 100 && loop_frame < 180) {
+            float ratio = (loop_frame - 100) / 80.0f;
+            current_data.gear = 'D';
+            current_data.speed_kmh = ratio * 60.0f;
+            current_data.motor_power_kw = 25.0f;
+            
+            if (loop_frame % 20 == 0) {
+                current_data.odometer_km++;
+                current_data.battery_range_km -= 0.1f;
             }
-
-            // ─── C. 触发单次极速清屏重绘 ───
-            display.render_dashboard(current_data);
+        }
+        // 阶段 3 (180 - 260 帧，9-13秒)：强力大负荷加速到 120 km/h，轮胎生热升压
+        else if (loop_frame >= 180 && loop_frame < 260) {
+            float ratio = (loop_frame - 180) / 80.0f;
+            current_data.gear = 'D';
+            current_data.speed_kmh = 60.0f + ratio * 60.0f;
+            current_data.motor_power_kw = 25.0f + ratio * 70.0f;
+            
+            current_data.tpms_fl = 2.5f + ratio * 0.1f;
+            current_data.tpms_fr = 2.5f + ratio * 0.2f;
+            current_data.tpms_rl = 2.4f + ratio * 0.1f;
+            current_data.tpms_rr = 2.4f + ratio * 0.2f;
+        }
+        // 阶段 4 (260 - 340 帧，13-17秒)：松电门滑行，动能回收绿色介入
+        else if (loop_frame >= 260 && loop_frame < 340) {
+            float ratio = (loop_frame - 260) / 80.0f;
+            current_data.gear = 'D';
+            current_data.speed_kmh = 120.0f - ratio * 20.0f;
+            current_data.motor_power_kw = -12.5f;
+        }
+        // 阶段 5 (340 - 420 帧，17-21秒)：重踩刹车急减速，强力动能回收大片绿色
+        else if (loop_frame >= 340 && loop_frame < 420) {
+            float ratio = (loop_frame - 340) / 80.0f;
+            current_data.gear = 'D';
+            current_data.speed_kmh = 100.0f - ratio * 90.0f;
+            current_data.motor_power_kw = -12.5f - ratio * 42.5f;
+            
+            if (loop_frame % 20 == 0) {
+                current_data.battery_range_km += 0.1f;
+            }
+        }
+        // 阶段 6 (420 - 480 帧，21-24秒)：挂入 R 档倒车特写与倒车速度
+        else if (loop_frame >= 420 && loop_frame < 480) {
+            current_data.gear = 'R'; // D 变 R 触发特写大字 R 显示
+            if (loop_frame < 460) {
+                current_data.speed_kmh = 0.0f;
+            } else {
+                current_data.speed_kmh = 5.0f;
+            }
+            current_data.motor_power_kw = 10.0f;
+            
+            float ratio = (loop_frame - 420) / 60.0f;
+            current_data.tpms_fl = 2.6f - ratio * 0.1f;
+            current_data.tpms_fr = 2.7f - ratio * 0.2f;
+            current_data.tpms_rl = 2.5f - ratio * 0.1f;
+            current_data.tpms_rr = 2.6f - ratio * 0.2f;
+        }
+        // 阶段 7 (480 - 560 帧，24-28秒)：重新切回 P 档静止，数据平稳冷却
+        else {
+            current_data.gear = 'P';
+            current_data.speed_kmh = 0.0f;
+            current_data.motor_power_kw = 0.0f;
+            
+            current_data.tpms_fl = 2.5f;
+            current_data.tpms_fr = 2.5f;
+            current_data.tpms_rl = 2.4f;
+            current_data.tpms_rr = 2.4f;
+            
+            if (loop_frame == 500) {
+                current_data.inside_temp = 23.0f;
+            }
         }
 
-        vTaskDelay(pdMS_TO_TICKS(100));
+        // 调用“局部差分重绘引擎”进行流畅的 0 全屏重绘渲染
+        display.render_dashboard(current_data);
+
+        frame_counter++;
+        // 以 20 FPS（每 50ms 一帧）高频模拟真实运行环境，完全不阻塞
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
