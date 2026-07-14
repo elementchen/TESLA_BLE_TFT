@@ -16,3 +16,6 @@ idf_component_register(
         tesla-ble
         esp_lcd
 )
+
+set_source_files_properties(fonts.cpp PROPERTIES COMPILE_FLAGS "-O0")
+
