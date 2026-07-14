@@ -1,12 +1,10 @@
 #pragma once
 
+#include <string>
+#include <vector>
 #include "dash_data.h"
 #include "fonts.h"
-#include <string>
-#include <cstdint>
-#include "esp_lcd_panel_io.h"
-#include "esp_lcd_panel_vendor.h"
-#include "esp_lcd_panel_ops.h"
+#include "esp_lcd_types.h"
 
 
 class Display {
@@ -15,13 +13,13 @@ public:
     ~Display();
 
     bool init(int sda, int scl, int reset);
-    void show_splash();
-    void show_pairing(const std::string &msg);
     void render_dashboard(const DashData &data);
     void show_error(const std::string &msg);
     void show_text_lines(const std::string &line1, const std::string &line2,
                          const std::string &line3);
     void clear();
+    void show_splash();
+    void show_pairing(const std::string &msg);
 
 private:
     static constexpr const char *TAG = "Display";
@@ -34,13 +32,13 @@ private:
 
     void fill_rect(int x, int y, int w, int h, uint16_t color);
     
-    // 高清 Sans-Serif 字体绘制接口 (6x12, 16x32 与 32x64)
+    // 高清 Sans-Serif 字体绘制接口 (6x12, 16x32 与 40x80)
     void draw_char_6x12(int x, int y, char c, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
     void draw_text_6x12(int x, int y, const char *text, int len, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
     void draw_char_16x32(int x, int y, char c, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
     void draw_text_16x32(int x, int y, const char *text, int len, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
-    void draw_char_32x64(int x, int y, char c, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
-    void draw_text_32x64(int x, int y, const char *text, int len, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
+    void draw_char_40x80(int x, int y, char c, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
+    void draw_text_40x80(int x, int y, const char *text, int len, uint16_t color, uint16_t bg = 0x0000, bool use_bg = false);
     void draw_bitmap(int x, int y, int w, int h, const uint16_t *bitmap);
     
     // 画线与几何轮廓原语 (Bresenham 算法与空心矩形)
@@ -59,7 +57,6 @@ private:
     void draw_status_bar(const DashData &data);
     void draw_speed_or_gear(float speed, char gear);
     void draw_power_bar_dual(int x, int y, int w, int h, float power_kw);
-    void draw_gears(char gear);
     void draw_odometer(uint32_t odo);
 
     // 局部重绘所需的状态变量缓存
