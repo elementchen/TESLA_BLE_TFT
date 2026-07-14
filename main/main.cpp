@@ -29,7 +29,6 @@ static constexpr const char *TAG = "TeslaDash";
 static Display   display;
 static DashData  current_data;
 
-// ST7789 SPI LCD 引脚已直接在 display.cpp 中定义
 #define OLED_SDA   0
 #define OLED_SCL   0
 #define OLED_RESET 0
@@ -123,14 +122,14 @@ extern "C" void app_main() {
     // 开机 Splash 停留 2 秒
     vTaskDelay(pdMS_TO_TICKS(2000));
 
-    ESP_LOGI(TAG, "Entering 20 FPS high-fidelity differential telemetry stream...");
+    ESP_LOGI(TAG, "Entering 20 FPS scenario-based telemetry script...");
 
     int32_t frame_counter = 0;
 
-    // 初始化遥测数据初值
+    // 默认基础状态
     current_data.valid = true;
     current_data.vehicle_awake = true;
-    current_data.ble_connected = false;
+    current_data.ble_connected = false; // DEMO 演示模式
     current_data.locked = true;
     current_data.odometer_km = 68420;
     
@@ -142,117 +141,132 @@ extern "C" void app_main() {
     current_data.door_open_trunk_rear = false;
     current_data.charging = false;
 
-    current_data.inside_temp = 22.0f;
+    current_data.inside_temp = 35.0f; // 暴晒车内高温
     current_data.outside_temp = 16.0f;
-    current_data.tpms_fl = 2.5f;
-    current_data.tpms_fr = 2.5f;
-    current_data.tpms_rl = 2.4f;
-    current_data.tpms_rr = 2.4f;
-    current_data.battery_level = 78;
-    current_data.battery_range_km = 312.0f;
+    current_data.tpms_fl = 2.3f;
+    current_data.tpms_fr = 2.3f;
+    current_data.tpms_rl = 2.3f;
+    current_data.tpms_rr = 2.3f;
+    current_data.battery_level = 62;
+    current_data.battery_range_km = 248.0f;
 
     while (true) {
-        // 28 秒一个完整物理周期 (每秒 20 帧，总 560 帧)
-        int loop_frame = frame_counter % 560;
+        // 35 秒一个完整剧本周期 (每秒 20 帧，总 700 帧)
+        int loop_frame = frame_counter % 700;
 
-        // ─── 根据时间步平滑推算“高保真数据流” ───
-        
-        // 阶段 0 (0 - 60 帧，0-3秒)：静止 P 档
-        if (loop_frame >= 0 && loop_frame < 60) {
+        // ─── 阶段 0：解锁上车（0.0 - 5.0秒，0 - 100帧） ───
+        if (loop_frame >= 0 && loop_frame < 100) {
+            current_data.locked = false;
+            current_data.door_open_fl = true;  // 主驾门开
+            current_data.door_open_rl = true;  // 左后门开
             current_data.gear = 'P';
             current_data.speed_kmh = 0.0f;
             current_data.motor_power_kw = 0.0f;
-            
-            current_data.tpms_fl = 2.5f;
-            current_data.tpms_fr = 2.5f;
-            current_data.tpms_rl = 2.4f;
-            current_data.tpms_rr = 2.4f;
+            current_data.charging = false;
         }
-        // 阶段 1 (60 - 100 帧，3-5秒)：挂入 D 档起步确认
-        else if (loop_frame >= 60 && loop_frame < 100) {
-            current_data.gear = 'D'; // P 变 D 触发 2 秒特写大字 D 显示
+        // ─── 阶段 1：准备起步（5.0 - 8.0秒，100 - 160帧） ───
+        else if (loop_frame >= 100 && loop_frame < 160) {
+            current_data.door_open_fl = false; // 关门
+            current_data.door_open_rl = false;
+            current_data.gear = 'P';
             current_data.speed_kmh = 0.0f;
-            current_data.motor_power_kw = 0.0f;
+            current_data.motor_power_kw = 1.5f; // 空调出风降温功率
         }
-        // 阶段 2 (100 - 180 帧，5-9秒)：轻油门起步加速到 60 km/h
-        else if (loop_frame >= 100 && loop_frame < 180) {
-            float ratio = (loop_frame - 100) / 80.0f;
-            current_data.gear = 'D';
-            current_data.speed_kmh = ratio * 60.0f;
-            current_data.motor_power_kw = 25.0f;
-            
+        // ─── 阶段 2：D档轻油门起步（8.0 - 12.0秒，160 - 240帧） ───
+        else if (loop_frame >= 160 && loop_frame < 240) {
+            current_data.gear = 'D'; // 挂 D 档 (前 40 帧为特写，后 40 帧加速)
+            if (loop_frame < 200) {
+                current_data.speed_kmh = 0.0f;
+                current_data.motor_power_kw = 0.0f;
+            } else {
+                float ratio = (loop_frame - 200) / 40.0f;
+                current_data.speed_kmh = ratio * 30.0f;
+                current_data.motor_power_kw = 12.0f;
+            }
             if (loop_frame % 20 == 0) {
                 current_data.odometer_km++;
                 current_data.battery_range_km -= 0.1f;
             }
         }
-        // 阶段 3 (180 - 260 帧，9-13秒)：强力大负荷加速到 120 km/h，轮胎生热升压
-        else if (loop_frame >= 180 && loop_frame < 260) {
-            float ratio = (loop_frame - 180) / 80.0f;
+        // ─── 阶段 3：强力加速超车（12.0 - 18.0秒，240 - 360帧） ───
+        else if (loop_frame >= 240 && loop_frame < 360) {
+            float ratio = (loop_frame - 240) / 120.0f;
             current_data.gear = 'D';
-            current_data.speed_kmh = 60.0f + ratio * 60.0f;
-            current_data.motor_power_kw = 25.0f + ratio * 70.0f;
+            current_data.speed_kmh = 30.0f + ratio * 90.0f;
+            current_data.motor_power_kw = 25.0f + ratio * 60.0f;
             
-            current_data.tpms_fl = 2.5f + ratio * 0.1f;
-            current_data.tpms_fr = 2.5f + ratio * 0.2f;
-            current_data.tpms_rl = 2.4f + ratio * 0.1f;
-            current_data.tpms_rr = 2.4f + ratio * 0.2f;
-        }
-        // 阶段 4 (260 - 340 帧，13-17秒)：松电门滑行，动能回收绿色介入
-        else if (loop_frame >= 260 && loop_frame < 340) {
-            float ratio = (loop_frame - 260) / 80.0f;
-            current_data.gear = 'D';
-            current_data.speed_kmh = 120.0f - ratio * 20.0f;
-            current_data.motor_power_kw = -12.5f;
-        }
-        // 阶段 5 (340 - 420 帧，17-21秒)：重踩刹车急减速，强力动能回收大片绿色
-        else if (loop_frame >= 340 && loop_frame < 420) {
-            float ratio = (loop_frame - 340) / 80.0f;
-            current_data.gear = 'D';
-            current_data.speed_kmh = 100.0f - ratio * 90.0f;
-            current_data.motor_power_kw = -12.5f - ratio * 42.5f;
+            // 轮胎摩擦生热升压
+            current_data.tpms_fl = 2.3f + ratio * 0.3f;
+            current_data.tpms_fr = 2.3f + ratio * 0.3f;
+            current_data.tpms_rl = 2.3f + ratio * 0.2f;
+            current_data.tpms_rr = 2.3f + ratio * 0.2f;
             
-            if (loop_frame % 20 == 0) {
-                current_data.battery_range_km += 0.1f;
+            // 车内快速降温
+            current_data.inside_temp = 35.0f - ratio * 13.0f;
+            
+            if (loop_frame % 15 == 0) {
+                current_data.odometer_km++;
+                current_data.battery_range_km -= 0.2f;
             }
         }
-        // 阶段 6 (420 - 480 帧，21-24秒)：挂入 R 档倒车特写与倒车速度
-        else if (loop_frame >= 420 && loop_frame < 480) {
-            current_data.gear = 'R'; // D 变 R 触发特写大字 R 显示
-            if (loop_frame < 460) {
-                current_data.speed_kmh = 0.0f;
+        // ─── 阶段 4：动能回收与重刹车（18.0 - 23.0秒，360 - 460帧） ───
+        else if (loop_frame >= 360 && loop_frame < 460) {
+            current_data.gear = 'D';
+            if (loop_frame < 410) {
+                // 松电门滑行 (120 -> 90 km/h)
+                float ratio = (loop_frame - 360) / 50.0f;
+                current_data.speed_kmh = 120.0f - ratio * 30.0f;
+                current_data.motor_power_kw = -12.5f; // 轻度回收
             } else {
-                current_data.speed_kmh = 5.0f;
+                // 重踩刹车 (90 -> 10 km/h)
+                float ratio = (loop_frame - 410) / 50.0f;
+                current_data.speed_kmh = 90.0f - ratio * 80.0f;
+                current_data.motor_power_kw = -12.5f - ratio * 47.5f; // 强力动能回收
             }
-            current_data.motor_power_kw = 10.0f;
-            
-            float ratio = (loop_frame - 420) / 60.0f;
-            current_data.tpms_fl = 2.6f - ratio * 0.1f;
-            current_data.tpms_fr = 2.7f - ratio * 0.2f;
-            current_data.tpms_rl = 2.5f - ratio * 0.1f;
-            current_data.tpms_rr = 2.6f - ratio * 0.2f;
+            if (loop_frame % 25 == 0) {
+                current_data.battery_range_km += 0.1f; // 续航微涨
+            }
         }
-        // 阶段 7 (480 - 560 帧，24-28秒)：重新切回 P 档静止，数据平稳冷却
+        // ─── 阶段 5：挂 R 档倒车（23.0 - 27.0秒，460 - 540帧） ───
+        else if (loop_frame >= 460 && loop_frame < 540) {
+            current_data.gear = 'R'; // 变 R 挡触发特写
+            if (loop_frame < 500) {
+                current_data.speed_kmh = 0.0f;
+                current_data.motor_power_kw = 0.0f;
+            } else {
+                current_data.speed_kmh = 5.0f; // 倒车速度 5
+                current_data.motor_power_kw = 4.0f;
+            }
+            // 胎压平稳冷却
+            float ratio = (loop_frame - 460) / 80.0f;
+            current_data.tpms_fl = 2.6f - ratio * 0.3f;
+            current_data.tpms_fr = 2.6f - ratio * 0.3f;
+            current_data.tpms_rl = 2.5f - ratio * 0.2f;
+            current_data.tpms_rr = 2.5f - ratio * 0.2f;
+        }
+        // ─── 阶段 6：停稳熄火，插枪充电（27.0 - 35.0秒，540 - 700帧） ───
         else {
             current_data.gear = 'P';
             current_data.speed_kmh = 0.0f;
             current_data.motor_power_kw = 0.0f;
+            current_data.locked = true;
             
-            current_data.tpms_fl = 2.5f;
-            current_data.tpms_fr = 2.5f;
-            current_data.tpms_rl = 2.4f;
-            current_data.tpms_rr = 2.4f;
+            // 激活充电状态
+            current_data.charging = true;
+            current_data.charge_power_kw = 7.2f;
             
-            if (loop_frame == 500) {
-                current_data.inside_temp = 23.0f;
-            }
+            // 模拟进度微增和充电时间倒计时
+            float ratio = (loop_frame - 540) / 160.0f;
+            current_data.battery_level = 62 + (int)(ratio * 3); // 62% 慢增至 65%
+            current_data.battery_range_km = 248.0f + ratio * 12.0f; // 续航上升
+            current_data.minutes_to_charge_limit = 225 - (int)(ratio * 15);
         }
 
-        // 调用“局部差分重绘引擎”进行流畅的 0 全屏重绘渲染
+        // 调用“多界面差分渲染派发接口”
         display.render_dashboard(current_data);
 
         frame_counter++;
-        // 以 20 FPS（每 50ms 一帧）高频模拟真实运行环境，完全不阻塞
+        // 稳定 20 FPS（50ms 一帧），体验极其丝滑
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }

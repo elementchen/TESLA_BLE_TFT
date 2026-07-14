@@ -299,7 +299,7 @@ void Display::draw_bitmap(int x, int y, int w, int h, const uint16_t *bitmap) {
     esp_lcd_panel_draw_bitmap(panel_, x, y, x + w, y + h, draw_buf);
 }
 
-// ─── 1-bit 点阵小字库物理渲染实现 (消除锯齿，边缘清晰清脆) ────────────
+// ─── 1-bit 点阵小字库物理渲染实现 (去锯齿，边缘清晰清脆) ────────────
 
 void Display::draw_char_6x12(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg) {
     if (c < 32 || c > 126) c = '?';
@@ -492,9 +492,8 @@ void Display::show_text_lines(const std::string &line1, const std::string &line2
     }
 }
 
-// ─── 特斯拉 UI 各块绘制函数 (卡片与状态栏贴边布局) ──────────────────
+// ─── 特斯拉 UI 各块绘制函数 (状态栏贴边 Y=4, 割线 Y=20) ───────────────
 
-// 顶部状态栏移至最顶部边界 (Y=4)，分割线放在 Y=20
 void Display::draw_status_bar(const DashData &data) {
     fill_rect(10, 20, 300, 1, 0x18C3);
 
@@ -520,37 +519,8 @@ void Display::draw_status_bar(const DashData &data) {
 }
 
 void Display::draw_speed_or_gear(float speed, char gear) {}
+void Display::draw_power_bar_dual(int x, int y, int w, int h, float power_kw) {}
 
-void Display::draw_power_bar_dual(int x, int y, int w, int h, float power_kw) {
-    fill_rect(x, y, w, h, 0x18C3);
-    int cx = x + w / 2;
-    
-    if (power_kw > 0.0f) {
-        float ratio = power_kw / 120.0f;
-        if (ratio > 1.0f) ratio = 1.0f;
-        int len = (int)(ratio * (w / 2));
-        if (len > 0) {
-            fill_rect(cx, y, len, h, 0xF800);
-        }
-    } else if (power_kw < 0.0f) {
-        float ratio = -power_kw / 60.0f;
-        if (ratio > 1.0f) ratio = 1.0f;
-        int len = (int)(ratio * (w / 2));
-        if (len > 0) {
-            fill_rect(cx - len, y, len, h, 0x07E0);
-        }
-    } else {
-        fill_rect(cx - 1, y - 1, 3, h + 2, 0xFFFF);
-    }
-
-    char buf[16];
-    int len_str = snprintf(buf, sizeof(buf), "%+.1f kW", power_kw);
-    int xs = (SCREEN_W - len_str * 6) / 2;
-    uint16_t val_color = (power_kw >= 0.0f) ? 0xF800 : 0x07E0;
-    draw_text_6x12(xs, y + 8, buf, len_str, val_color);
-}
-
-// 底部公里数 ODO 下移贴底边 (Y=222)
 void Display::draw_odometer(uint32_t odo) {
     char buf[32];
     int len = snprintf(buf, sizeof(buf), "ODO: %u km", (unsigned int)odo);
@@ -559,35 +529,119 @@ void Display::draw_odometer(uint32_t odo) {
 }
 
 void Display::draw_car_chassis(int cx, int cy, const DashData &data) {}
-void Display::draw_driving_screen(const DashData &data) {}
-void Display::draw_closures_screen(const DashData &data) {}
-void Display::draw_charging_screen(const DashData &data) {}
 
-// ─── 统一界面差分渲染入口 (黄金车规级离屏双缓冲局部更新) ───────────────
+// ─── 页面 1: 开门界面绘制实现 (大尺寸特斯拉红色实心位图) ───────────────
 
-void Display::render_dashboard(const DashData &data) {
-    if (!initialized_) return;
-
-    if (!data.valid) {
-        if (is_first_render_ || last_data_.valid) {
-            clear();
-            draw_status_bar(data);
-            int xs = (SCREEN_W - 7 * 16) / 2;
-            draw_text_16x32(xs, 75, "NO DATA", 7, 0x7BEF);
-        }
-        last_data_ = data;
-        is_first_render_ = false;
-        return;
-    }
-
-    // 首次渲染底图框架
+void Display::draw_closures_screen(const DashData &data) {
     if (is_first_render_) {
         clear();
         draw_status_bar(data);
         
-        // 胎压线框下移至 Y=184 贴边
+        // 居中绘制 100x140 红色全开门特斯拉位图
+        draw_bitmap(110, 51, 100, 140, car_open_image);
+        
+        // 绘制大红色警告文本 (Y=196)
+        int xs = (SCREEN_W - 14 * 6) / 2;
+        draw_text_6x12(xs, 196, "DOORS UNCLOSED", 14, 0xF800);
+        
+        // 里程贴底边 (Y=222)
+        draw_odometer(data.odometer_km);
+        
+        is_first_render_ = false;
+        last_data_ = data;
+    }
+    
+    // 差分刷新
+    if (data.ble_connected != last_data_.ble_connected ||
+        data.locked != last_data_.locked ||
+        data.vehicle_awake != last_data_.vehicle_awake) {
+        fill_rect(0, 0, SCREEN_W, 19, 0x0000);
+        draw_status_bar(data);
+    }
+    
+    if (data.odometer_km != last_data_.odometer_km) {
+        fill_rect(50, 220, 220, 20, 0x0000);
+        draw_odometer(data.odometer_km);
+    }
+    
+    last_data_ = data;
+}
+
+// ─── 页面 2: 极简充电界面绘制实现 (纯绿色无外廓进度条) ──────────────────
+
+void Display::draw_charging_screen(const DashData &data) {
+    if (is_first_render_) {
+        clear();
+        draw_status_bar(data);
+        
+        // 头部显示亮绿色 CHARGING 状态
+        int xs = (SCREEN_W - 8 * 16) / 2;
+        draw_text_16x32(xs, 35, "CHARGING", 8, 0x07E0);
+        
+        // 直槽充电进度底条背景 (X=30, Y=145, 宽 260, 高 8)
+        fill_rect(30, 145, 260, 8, 0x18C3);
+        
+        draw_odometer(data.odometer_km);
+        
+        is_first_render_ = false;
+        last_data_ = data;
+    }
+    
+    // 充电差分刷新
+    if (data.ble_connected != last_data_.ble_connected ||
+        data.locked != last_data_.locked ||
+        data.vehicle_awake != last_data_.vehicle_awake) {
+        fill_rect(0, 0, SCREEN_W, 19, 0x0000);
+        draw_status_bar(data);
+    }
+    
+    // 充电中大字大包围区差分 (Y=72 到 140)
+    if (std::abs(data.charge_power_kw - last_data_.charge_power_kw) > 0.1f ||
+        data.battery_level != last_data_.battery_level ||
+        data.minutes_to_charge_limit != last_data_.minutes_to_charge_limit ||
+        data.battery_range_km != last_data_.battery_range_km) {
+        
+        fill_rect(10, 72, 300, 68, 0x0000);
+        
+        char buf[64];
+        // 渲染 SOC + 充电功率 (如: "62% @ 7.2 kW")
+        int len = snprintf(buf, sizeof(buf), "%d%% @ %.1f kW", (int)data.battery_level, data.charge_power_kw);
+        int xs = (SCREEN_W - len * 16) / 2;
+        draw_text_16x32(xs, 75, buf, len, 0xFFFF);
+        
+        // 渲染预计剩余时间和加电里程 (如: "Remaining: 3h 45m (+240 km)")
+        int hrs = data.minutes_to_charge_limit / 60;
+        int mins = data.minutes_to_charge_limit % 60;
+        len = snprintf(buf, sizeof(buf), "Remaining: %dh %dm  (+%.0f km)", hrs, mins, data.battery_range_km);
+        xs = (SCREEN_W - len * 6) / 2;
+        draw_text_6x12(xs, 115, buf, len, 0xCE79);
+    }
+    
+    // 极简亮绿色进度直槽覆盖 (Y=145)
+    if (data.battery_level != last_data_.battery_level || last_data_.battery_level == 0) {
+        fill_rect(30, 145, 260, 8, 0x18C3);
+        int fill_w = (int)((data.battery_level / 100.0f) * 260.0f);
+        if (fill_w > 260) fill_w = 260;
+        fill_rect(30, 145, fill_w, 8, 0x07E0);
+    }
+    
+    if (data.odometer_km != last_data_.odometer_km) {
+        fill_rect(50, 220, 220, 20, 0x0000);
+        draw_odometer(data.odometer_km);
+    }
+    
+    last_data_ = data;
+}
+
+// ─── 页面 3: 驾驶主界面渲染实现 (差分刷新，大字时速，整合挡位) ───────────
+
+void Display::draw_driving_screen(const DashData &data) {
+    if (is_first_render_) {
+        clear();
+        draw_status_bar(data);
+        
+        // 胎压线框与电池图标底图
         draw_rect_outline(147, 184, 26, 30, 0x5AEB);
-        // 电池外框下移至 Y=186
         draw_rect_outline(15, 186, 20, 10, 0xCE79);
         fill_rect(35, 188, 2, 6, 0xCE79);
 
@@ -598,9 +652,7 @@ void Display::render_dashboard(const DashData &data) {
         memset(prev_drawn_speed_gear_str_, 0, sizeof(prev_drawn_speed_gear_str_));
     }
 
-    // ─── 局部差分重绘 ───
-
-    // 1. 顶部状态栏 (Y=4, 有变化重画)
+    // 1. 顶部状态栏
     if (data.ble_connected != last_data_.ble_connected ||
         data.locked != last_data_.locked ||
         data.vehicle_awake != last_data_.vehicle_awake) {
@@ -608,7 +660,7 @@ void Display::render_dashboard(const DashData &data) {
         draw_status_bar(data);
     }
 
-    // 2. 核心大字时速区（Y=32 到 112, 局部画布宽 260，高 80，彻底消除拉帘）
+    // 2. 车速与挡位融合大字 (260x80 Canvas, Y=32)
     int speed_int = (int)std::round(data.speed_kmh);
     char current_text[16] = {0};
     
@@ -633,36 +685,29 @@ void Display::render_dashboard(const DashData &data) {
         memset(speed_canvas, 0, sizeof(speed_canvas));
         
         if (show_gear_focus) {
-            // 【换挡特写】：中央巨型红色大字 (40x80)
             draw_char_40x80_on_canvas(speed_canvas, 260, 80, (260 - 40) / 2, 0, data.gear, 0xF800);
             draw_text_6x12_on_canvas(speed_canvas, 260, 80, (260 - 6 * 6) / 2, 68, "ACTIVE", 6, 0xF800);
         } else {
-            // 【行驶时速】：当前档位融合在速度左侧，时速 40x80 居中，km/h 悬浮在右侧
-            // 1. 左侧挂小红字档位 (16x32)
+            // 行驶中：左侧画红色常规挡位 (16x32)，中间巨型 40x80 速度，右侧悬浮 km/h
             draw_char_16x32_on_canvas(speed_canvas, 260, 80, 15, 24, data.gear, 0xF800);
             
-            // 2. 中央大时速 (40x80)
             char buf[8];
             int len = snprintf(buf, sizeof(buf), "%d", speed_int);
             int total_w = len * 40;
             int xs = (260 - total_w) / 2;
             draw_text_40x80_on_canvas(speed_canvas, 260, 80, xs, 0, buf, len, 0xFFFF);
             
-            // 3. 右侧 km/h 单位
             draw_text_6x12_on_canvas(speed_canvas, 260, 80, xs + total_w + 4, 52, "km/h", 4, 0x7BEF);
         }
         
-        // 大端序瞬间翻转
         for (int i = 0; i < 260 * 80; i++) {
             uint16_t color = speed_canvas[i];
             speed_canvas[i] = (color >> 8) | (color << 8);
         }
-        
-        // 瞬间推送时速大区 (Y轴提至 Y=32，给中间留出开阔视野)
         esp_lcd_panel_draw_bitmap(panel_, 30, 32, 30 + 260, 32 + 80, speed_canvas);
     }
 
-    // 3. 功率能量回收条 (Y=128 到 154, 宽 260, 高 26)
+    // 3. 双色功率条 (Y=128 到 154)
     if (std::abs(data.motor_power_kw - last_data_.motor_power_kw) > 0.3f) {
         static uint16_t power_canvas[260 * 26];
         memset(power_canvas, 0, sizeof(power_canvas));
@@ -701,9 +746,7 @@ void Display::render_dashboard(const DashData &data) {
         esp_lcd_panel_draw_bitmap(panel_, 30, 128, 30 + 260, 128 + 26, power_canvas);
     }
 
-    // ─── 底部卡片贴边刷新区 (Y=182 至 Y=214，彻底防残影) ───
-
-    // 4. 左下角电池与公里数卡片 (X=12 到 110, Y=182 到 214)
+    // 4. 左下角电池卡片盒 (X=12 到 110, Y=182 到 214)
     if (data.battery_level != last_data_.battery_level ||
         data.battery_range_km != last_data_.battery_range_km) {
         
@@ -765,4 +808,41 @@ void Display::render_dashboard(const DashData &data) {
     }
 
     last_data_ = data;
+}
+
+// ─── 统一界面差分渲染分发接口 ──────────────────────────────────────────
+
+void Display::render_dashboard(const DashData &data) {
+    if (!initialized_) return;
+
+    // 1. 根据数据确定当前所属的界面类型
+    int current_screen_type = 0; // 0: driving, 1: closures, 2: charging
+    
+    if (data.valid) {
+        bool any_door_open = (data.door_open_fl || data.door_open_fr ||
+                              data.door_open_rl || data.door_open_rr ||
+                              data.door_open_trunk_front || data.door_open_trunk_rear);
+        
+        if (any_door_open && (int)std::round(data.speed_kmh) == 0) {
+            current_screen_type = 1; // closures
+        } else if (data.charging && (int)std::round(data.speed_kmh) == 0) {
+            current_screen_type = 2; // charging
+        }
+    }
+
+    // 2. 检测到界面类型跳转，强制进行一次全局清屏和重置 is_first_render
+    static int last_screen_type = -1;
+    if (current_screen_type != last_screen_type) {
+        last_screen_type = current_screen_type;
+        is_first_render_ = true; // 强制重新初始化底图
+    }
+
+    // 3. 分发具体绘制
+    if (current_screen_type == 1) {
+        draw_closures_screen(data);
+    } else if (current_screen_type == 2) {
+        draw_charging_screen(data);
+    } else {
+        draw_driving_screen(data);
+    }
 }
