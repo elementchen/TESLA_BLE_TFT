@@ -21,6 +21,12 @@
 #define DISPLAY_RES             45
 #define DISPLAY_BLK             42
 
+// 外部字库引用
+extern const uint8_t font6x12_raw[95][12];
+extern const uint8_t font16x32_aa[95][256];
+extern const uint8_t font32x64_nums_aa[18][1024];
+int get_font32x64_index(char c);
+
 Display::~Display() {
     if (panel_) {
         esp_lcd_panel_del(panel_);
@@ -84,6 +90,102 @@ bool Display::init(int sda, int scl, int reset) {
     initialized_ = true;
     clear();
     return true;
+}
+
+// ─── 离屏 Canvas 画布绘制辅助函数 ───────────────────────────────────
+
+static void fill_rect_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, int w, int h, uint16_t color) {
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > canvas_w) w = canvas_w - x;
+    if (y + h > canvas_h) h = canvas_h - y;
+    if (w <= 0 || h <= 0) return;
+
+    for (int dy = 0; dy < h; dy++) {
+        int cy = y + dy;
+        uint16_t *row_ptr = canvas + cy * canvas_w;
+        for (int dx = 0; dx < w; dx++) {
+            row_ptr[x + dx] = color;
+        }
+    }
+}
+
+static void draw_char_6x12_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, char c, uint16_t color) {
+    if (c < 32 || c > 126) c = '?';
+    const uint8_t *glyph = font6x12_raw[c - 32];
+    
+    for (int row = 0; row < 12; row++) {
+        int cy = y + row;
+        if (cy < 0 || cy >= canvas_h) continue;
+        uint8_t row_byte = glyph[row];
+        uint16_t *row_ptr = canvas + cy * canvas_w;
+        
+        for (int col = 0; col < 6; col++) {
+            int cx = x + col;
+            if (cx < 0 || cx >= canvas_w) continue;
+            
+            bool bit_set = (row_byte & (1 << col)) != 0;
+            if (bit_set) {
+                row_ptr[cx] = color;
+            }
+        }
+    }
+}
+
+static void draw_text_6x12_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, const char *text, int len, uint16_t color) {
+    for (int i = 0; i < len; i++) {
+        draw_char_6x12_on_canvas(canvas, canvas_w, canvas_h, x + i * 6, y, text[i], color);
+    }
+}
+
+static void draw_char_32x64_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, char c, uint16_t color) {
+    int idx = get_font32x64_index(c);
+    const uint8_t *glyph = font32x64_nums_aa[idx];
+    
+    uint8_t r = (color >> 11) & 0x1F;
+    uint8_t g = (color >> 5) & 0x3F;
+    uint8_t b = color & 0x1F;
+    
+    for (int row = 0; row < 64; row++) {
+        int cy = y + row;
+        if (cy < 0 || cy >= canvas_h) continue;
+        const uint8_t *row_bytes = glyph + row * 16;
+        uint16_t *row_ptr = canvas + cy * canvas_w;
+        
+        for (int col = 0; col < 32; col++) {
+            int cx = x + col;
+            if (cx < 0 || cx >= canvas_w) continue;
+            
+            int col_read = col;
+            int byte_idx = col_read / 2;
+            uint8_t pixel_val = 0;
+            if (col_read % 2 == 0) {
+                pixel_val = row_bytes[byte_idx] >> 4;
+            } else {
+                pixel_val = row_bytes[byte_idx] & 0x0F;
+            }
+            
+            if (pixel_val == 15) {
+                row_ptr[cx] = color;
+            } else if (pixel_val > 0) {
+                uint16_t bg_color = row_ptr[cx];
+                uint8_t bg_r = (bg_color >> 11) & 0x1F;
+                uint8_t bg_g = (bg_color >> 5) & 0x3F;
+                uint8_t bg_b = bg_color & 0x1F;
+                
+                uint8_t blend_r = (r * pixel_val + bg_r * (15 - pixel_val)) / 15;
+                uint8_t blend_g = (g * pixel_val + bg_g * (15 - pixel_val)) / 15;
+                uint8_t blend_b = (b * pixel_val + bg_b * (15 - pixel_val)) / 15;
+                row_ptr[cx] = (blend_r << 11) | (blend_g << 5) | blend_b;
+            }
+        }
+    }
+}
+
+static void draw_text_32x64_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, const char *text, int len, uint16_t color) {
+    for (int i = 0; i < len; i++) {
+        draw_char_32x64_on_canvas(canvas, canvas_w, canvas_h, x + i * 32, y, text[i], color);
+    }
 }
 
 // ─── 绘图基础原语 ──────────────────────────────────────────────────
@@ -153,36 +255,18 @@ void Display::draw_bitmap(int x, int y, int w, int h, const uint16_t *bitmap) {
     esp_lcd_panel_draw_bitmap(panel_, x, y, x + w, y + h, draw_buf);
 }
 
-// ─── 高清 Sans-Serif 字体绘制实现 ──────────────────────────────────
+// ─── 1-bit 点阵小字库物理渲染实现 (消除锯齿，边缘清晰清脆) ────────────
 
 void Display::draw_char_6x12(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg) {
     if (c < 32 || c > 126) c = '?';
-    const uint8_t *glyph = font6x12_aa[c - 32];
-    
-    uint8_t r = (color >> 11) & 0x1F;
-    uint8_t g = (color >> 5) & 0x3F;
-    uint8_t b = color & 0x1F;
+    const uint8_t *glyph = font6x12_raw[c - 32];
     
     for (int row = 0; row < 12; row++) {
-        const uint8_t *row_bytes = glyph + row * 3;
+        uint8_t row_byte = glyph[row];
         for (int col = 0; col < 6; col++) {
-            int col_read = col;
-            int byte_idx = col_read / 2;
-            uint8_t pixel_val = 0;
-            if (col_read % 2 == 0) {
-                pixel_val = row_bytes[byte_idx] >> 4;
-            } else {
-                pixel_val = row_bytes[byte_idx] & 0x0F;
-            }
-            
-            if (pixel_val == 15) {
+            bool bit_set = (row_byte & (1 << col)) != 0;
+            if (bit_set) {
                 fill_rect(x + col, y + row, 1, 1, color);
-            } else if (pixel_val > 0) {
-                uint8_t blend_r = (r * pixel_val) / 15;
-                uint8_t blend_g = (g * pixel_val) / 15;
-                uint8_t blend_b = (b * pixel_val) / 15;
-                uint16_t blended_color = (blend_r << 11) | (blend_g << 5) | blend_b;
-                fill_rect(x + col, y + row, 1, 1, blended_color);
             } else if (use_bg) {
                 fill_rect(x + col, y + row, 1, 1, bg);
             }
@@ -198,6 +282,7 @@ void Display::draw_text_6x12(int x, int y, const char *text, int len, uint16_t c
     }
 }
 
+// 16x32 常规体 (中字抗锯齿保留)
 void Display::draw_char_16x32(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg) {
     if (c < 32 || c > 126) c = '?';
     const uint8_t *glyph = font16x32_aa[c - 32];
@@ -241,7 +326,7 @@ void Display::draw_text_16x32(int x, int y, const char *text, int len, uint16_t 
     }
 }
 
-// 32x64 覆盖背景绘制
+// 32x64 巨型字 (中大字抗锯齿保留)
 void Display::draw_char_32x64(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg) {
     int idx = get_font32x64_index(c);
     const uint8_t *glyph = font32x64_nums_aa[idx];
@@ -285,7 +370,7 @@ void Display::draw_text_32x64(int x, int y, const char *text, int len, uint16_t 
     }
 }
 
-// ─── 启动与底色 ────────────────────────────────────────────────────
+// ─── 统一清屏 ──────────────────────────────────────────────────────
 
 void Display::clear() {
     fill_rect(0, 0, SCREEN_W, SCREEN_H, 0x0000);
@@ -363,7 +448,7 @@ void Display::show_text_lines(const std::string &line1, const std::string &line2
     }
 }
 
-// ─── 特斯拉 UI 功能块定义 ──────────────────────────────────────────
+// ─── 特斯拉 UI 底图功能块 ──────────────────────────────────────────
 
 void Display::draw_status_bar(const DashData &data) {
     fill_rect(10, 30, 300, 1, 0x18C3);
@@ -389,39 +474,6 @@ void Display::draw_status_bar(const DashData &data) {
     }
 }
 
-void Display::draw_speed_or_gear(float speed, char gear) {
-    // 基础绘制逻辑被 render_dashboard 的局部差分擦除逻辑接管
-}
-
-void Display::draw_power_bar_dual(int x, int y, int w, int h, float power_kw) {
-    fill_rect(x, y, w, h, 0x18C3);
-    int cx = x + w / 2;
-    
-    if (power_kw > 0.0f) {
-        float ratio = power_kw / 120.0f;
-        if (ratio > 1.0f) ratio = 1.0f;
-        int len = (int)(ratio * (w / 2));
-        if (len > 0) {
-            fill_rect(cx, y, len, h, 0xF800);
-        }
-    } else if (power_kw < 0.0f) {
-        float ratio = -power_kw / 60.0f;
-        if (ratio > 1.0f) ratio = 1.0f;
-        int len = (int)(ratio * (w / 2));
-        if (len > 0) {
-            fill_rect(cx - len, y, len, h, 0x07E0);
-        }
-    } else {
-        fill_rect(cx - 1, y - 1, 3, h + 2, 0xFFFF);
-    }
-
-    char buf[16];
-    int len_str = snprintf(buf, sizeof(buf), "%+.1f kW", power_kw);
-    int xs = (SCREEN_W - len_str * 6) / 2;
-    uint16_t val_color = (power_kw >= 0.0f) ? 0xF800 : 0x07E0;
-    draw_text_6x12(xs, y + 8, buf, len_str, val_color);
-}
-
 void Display::draw_gears(char gear) {
     char gear_chars[] = {'P', 'R', 'N', 'D', 'S'};
     int gear_x[] = {35, 90, 145, 200, 255};
@@ -436,7 +488,6 @@ void Display::draw_gears(char gear) {
             fill_rect(x, gear_y, card_size, card_size, 0xF800);
             draw_char_16x32(x + 5, gear_y - 3, g, 0xFFFF);
         } else {
-            // 普通卡片擦除背景，防止残留红底
             fill_rect(x, gear_y, card_size, card_size, 0x0000);
             draw_char_16x32(x + 5, gear_y - 3, g, 0x5AEB);
         }
@@ -450,19 +501,11 @@ void Display::draw_odometer(uint32_t odo) {
     draw_text_6x12(xs, 208, buf, len, 0xCE79);
 }
 
-// ─── 备用占位 ──────────────────────────────────────────────────────
-
-void Display::draw_car_chassis(int cx, int cy, const DashData &data) {}
-void Display::draw_driving_screen(const DashData &data) {}
-void Display::draw_closures_screen(const DashData &data) {}
-void Display::draw_charging_screen(const DashData &data) {}
-
-// ─── 统一界面差分渲染入口 (黄金车规级 0 闪写字擦除架构) ───────────────
+// ─── 统一界面差分渲染入口 (局部离屏双缓冲，彻底消除拉帘扫描线) ────────
 
 void Display::render_dashboard(const DashData &data) {
     if (!initialized_) return;
 
-    // 1. 无效/掉线状态
     if (!data.valid) {
         if (is_first_render_ || last_data_.valid) {
             clear();
@@ -475,21 +518,16 @@ void Display::render_dashboard(const DashData &data) {
         return;
     }
 
-    // 2. 首次渲染：全屏铺底色与静态外框，为后续局部微刷打下基础
+    // 首次渲染底图与外框
     if (is_first_render_) {
         clear();
         draw_status_bar(data);
         
-        // 胎压线框
         draw_rect_outline(147, 170, 26, 30, 0x5AEB);
-        // 电池外框
         draw_rect_outline(15, 172, 20, 10, 0xCE79);
         fill_rect(35, 174, 2, 6, 0xCE79);
 
-        // ODO 里程
         draw_odometer(data.odometer_km);
-        
-        // 挡位指示背景
         draw_gears(data.gear);
 
         is_first_render_ = false;
@@ -497,9 +535,9 @@ void Display::render_dashboard(const DashData &data) {
         memset(prev_drawn_speed_gear_str_, 0, sizeof(prev_drawn_speed_gear_str_));
     }
 
-    // ─── C. 核心局部差分重绘 ───
+    // ─── 局部刷新各组件 ───
 
-    // 1) 顶部状态栏
+    // 1) 顶部状态栏 (有变化才重画)
     if (data.ble_connected != last_data_.ble_connected ||
         data.locked != last_data_.locked ||
         data.vehicle_awake != last_data_.vehicle_awake) {
@@ -507,23 +545,21 @@ void Display::render_dashboard(const DashData &data) {
         draw_status_bar(data);
     }
 
-    // 2) 挡位下方大框 (切换挡位)
+    // 2) 挡位指示背景
     if (data.gear != last_data_.gear) {
         draw_gears(data.gear);
     }
 
-    // 3) 车速与挡位特写大字区 (Y=38 到 116)
+    // 3) 车速与挡位大字区 (通过 260x64 离屏双缓冲局部极速重写)
     int speed_int = (int)std::round(data.speed_kmh);
     char current_text[16] = {0};
     
-    // 挡位改变检测
     if (data.gear != prev_gear_) {
         prev_gear_ = data.gear;
         gear_switch_time_ms_ = esp_timer_get_time() / 1000;
     }
     int64_t now_ms = esp_timer_get_time() / 1000;
     
-    // D档刚起步前 2 秒显示特写，P档和R档静止时强制显示特写大字
     bool show_gear_focus = (data.gear == 'P' || data.gear == 'R' || (now_ms - gear_switch_time_ms_ < 2000));
 
     if (show_gear_focus) {
@@ -532,57 +568,102 @@ void Display::render_dashboard(const DashData &data) {
         snprintf(current_text, sizeof(current_text), "S_%d", speed_int);
     }
 
-    // 当大字字符串改变时，才重刷正中大字区
+    // 当车速或挡位字符变化时，用离屏 Canvas 打包一瞬间推送，杜绝扫描线
     if (strcmp(current_text, prev_drawn_speed_gear_str_) != 0) {
         strcpy(prev_drawn_speed_gear_str_, current_text);
         
-        // 极速局域涂黑 (宽 240, 高 80，刷新极快，100% 毫无闪烁)
-        fill_rect(30, 38, 260, 80, 0x0000);
+        static uint16_t speed_canvas[260 * 64];
+        memset(speed_canvas, 0, sizeof(speed_canvas));
         
         if (show_gear_focus) {
-            int xs = (SCREEN_W - 32) / 2;
-            draw_char_32x64(xs, 40, data.gear, 0xF800);
-            draw_text_6x12(142, 108, "ACTIVE", 6, 0xF800);
+            // 画红色特大挡位字母 (传入正确的 7 个参数)
+            draw_char_32x64_on_canvas(speed_canvas, 260, 64, (260 - 32) / 2, 0, data.gear, 0xF800);
+            draw_text_6x12_on_canvas(speed_canvas, 260, 64, (260 - 6 * 6) / 2, 52, "ACTIVE", 6, 0xF800);
         } else {
+            // 画白色时速与悬浮 km/h 单位 (传入正确的 8 个参数)
             char buf[8];
             int len = snprintf(buf, sizeof(buf), "%d", speed_int);
             int total_w = len * 32;
-            int xs = (SCREEN_W - total_w) / 2;
+            int xs = (260 - total_w) / 2;
             
-            draw_text_32x64(xs, 40, buf, len, 0xFFFF);
-            draw_text_6x12(xs + total_w + 4, 80, "km/h", 4, 0x7BEF);
+            draw_text_32x64_on_canvas(speed_canvas, 260, 64, xs, 0, buf, len, 0xFFFF);
+            draw_text_6x12_on_canvas(speed_canvas, 260, 64, xs + total_w + 4, 40, "km/h", 4, 0x7BEF);
         }
+        
+        for (int i = 0; i < 260 * 64; i++) {
+            uint16_t color = speed_canvas[i];
+            speed_canvas[i] = (color >> 8) | (color << 8);
+        }
+        
+        esp_lcd_panel_draw_bitmap(panel_, 30, 38, 30 + 260, 38 + 64, speed_canvas);
     }
 
-    // 4) 双色功率能量回收条 (变化偏差 > 0.3 kW 时触发局部重刷)
+    // 4) 双色功率能量回收条 (通过 260x26 离屏双缓冲局部极速重写)
     if (std::abs(data.motor_power_kw - last_data_.motor_power_kw) > 0.3f) {
-        fill_rect(30, 130, 260, 26, 0x0000);
-        draw_power_bar_dual(30, 138, 260, 4, data.motor_power_kw);
+        static uint16_t power_canvas[260 * 26];
+        memset(power_canvas, 0, sizeof(power_canvas));
+        
+        fill_rect_on_canvas(power_canvas, 260, 26, 0, 8, 260, 4, 0x18C3);
+        int cx = 260 / 2;
+        
+        if (data.motor_power_kw > 0.0f) {
+            float ratio = data.motor_power_kw / 120.0f;
+            if (ratio > 1.0f) ratio = 1.0f;
+            int len = (int)(ratio * (260 / 2));
+            if (len > 0) {
+                fill_rect_on_canvas(power_canvas, 260, 26, cx, 8, len, 4, 0xF800);
+            }
+        } else if (data.motor_power_kw < 0.0f) {
+            float ratio = -data.motor_power_kw / 60.0f;
+            if (ratio > 1.0f) ratio = 1.0f;
+            int len = (int)(ratio * (260 / 2));
+            if (len > 0) {
+                fill_rect_on_canvas(power_canvas, 260, 26, cx - len, 8, len, 4, 0x07E0);
+            }
+        } else {
+            fill_rect_on_canvas(power_canvas, 260, 26, cx - 1, 7, 3, 6, 0xFFFF);
+        }
+        
+        char pwr_buf[16];
+        int len_str = snprintf(pwr_buf, sizeof(pwr_buf), "%+.1f kW", data.motor_power_kw);
+        int xs = (260 - len_str * 6) / 2;
+        uint16_t val_color = (data.motor_power_kw >= 0.0f) ? 0xF800 : 0x07E0;
+        draw_text_6x12_on_canvas(power_canvas, 260, 26, xs, 16, pwr_buf, len_str, val_color);
+        
+        for (int i = 0; i < 260 * 26; i++) {
+            uint16_t color = power_canvas[i];
+            power_canvas[i] = (color >> 8) | (color << 8);
+        }
+        esp_lcd_panel_draw_bitmap(panel_, 30, 130, 30 + 260, 130 + 26, power_canvas);
     }
 
-    // 5) 左下角电池与公里数卡片
+    // ─── 以下为物理防残影小卡片区，每次数据有变对该卡片盒整体擦除重绘 ───
+
+    // 5. 左下角电池与续航卡片盒 (擦除盒: X=12 到 110, Y=168 到 200)
     if (data.battery_level != last_data_.battery_level ||
         data.battery_range_km != last_data_.battery_range_km) {
         
-        fill_rect(17, 174, 16, 6, 0x0000);
+        fill_rect(12, 168, 98, 32, 0x0000);
+        
+        draw_rect_outline(15, 172, 20, 10, 0xCE79);
+        fill_rect(35, 174, 2, 6, 0xCE79);
         int fill_w = (int)((data.battery_level / 100.0f) * 16.0f);
         fill_rect(17, 174, fill_w, 6, 0x07E0);
         
-        fill_rect(40, 170, 70, 12, 0x0000);
         char val_buf[16];
         snprintf(val_buf, sizeof(val_buf), "%d%%", (int)data.battery_level);
         draw_text_6x12(40, 170, val_buf, strlen(val_buf), 0xFFFF);
         
-        fill_rect(15, 186, 95, 12, 0x0000);
         snprintf(val_buf, sizeof(val_buf), "%.0f km", data.battery_range_km);
         draw_text_6x12(15, 186, val_buf, strlen(val_buf), 0xCE79);
     }
 
-    // 6) 右下角温度卡片
+    // 6. 右下角温度卡片盒 (擦除盒: X=230 到 315, Y=168 到 200)
     if (std::abs(data.inside_temp - last_data_.inside_temp) > 0.08f ||
         std::abs(data.outside_temp - last_data_.outside_temp) > 0.08f) {
         
-        fill_rect(235, 170, 80, 28, 0x0000);
+        fill_rect(230, 168, 85, 32, 0x0000);
+        
         char val_buf[16];
         snprintf(val_buf, sizeof(val_buf), "In:  %.1f C", data.inside_temp);
         draw_text_6x12(235, 170, val_buf, strlen(val_buf), 0xFFFF);
@@ -590,14 +671,14 @@ void Display::render_dashboard(const DashData &data) {
         draw_text_6x12(235, 186, val_buf, strlen(val_buf), 0xCE79);
     }
 
-    // 7) 四轮胎压数据卡片
+    // 7. 四角胎压卡片盒 (擦除盒: X=112 到 228, Y=165 到 200)
     if (std::abs(data.tpms_fl - last_data_.tpms_fl) > 0.05f ||
         std::abs(data.tpms_fr - last_data_.tpms_fr) > 0.05f ||
         std::abs(data.tpms_rl - last_data_.tpms_rl) > 0.05f ||
         std::abs(data.tpms_rr - last_data_.tpms_rr) > 0.05f) {
         
-        fill_rect(110, 165, 35, 33, 0x0000);
-        fill_rect(175, 165, 45, 33, 0x0000);
+        fill_rect(112, 165, 116, 35, 0x0000);
+        draw_rect_outline(147, 170, 26, 30, 0x5AEB);
         
         char val_buf[16];
         snprintf(val_buf, sizeof(val_buf), "%.1f", data.tpms_fl);
@@ -613,12 +694,11 @@ void Display::render_dashboard(const DashData &data) {
         draw_text_6x12(178, 186, val_buf, strlen(val_buf), 0xCE79);
     }
 
-    // 8) 底部里程卡片
+    // 8. 底部总里程卡片盒 (擦除盒: X=50 到 270, Y=204 到 224)
     if (data.odometer_km != last_data_.odometer_km) {
-        fill_rect(60, 205, 200, 18, 0x0000);
+        fill_rect(50, 204, 220, 20, 0x0000);
         draw_odometer(data.odometer_km);
     }
 
-    // 状态更新
     last_data_ = data;
 }
