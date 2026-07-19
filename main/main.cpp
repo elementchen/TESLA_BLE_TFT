@@ -171,13 +171,15 @@ extern "C" void app_main() {
                 // 搜索自定义仿真数据帧头 0xAA 0xBB
                 for (int i = 0; i < rx_len - 1; i++) {
                     if (rx_buf[i] == 0xAA && rx_buf[i+1] == 0xBB) {
-                        // 2(头) + 2(长度) + 62(数据体) + 2(尾) = 68 字节
-                        if (rx_len - i >= 68) {
+                        // 2(头) + 2(长度) + sizeof(SimPayload)(数据体) + 2(尾)
+                        int total_frame_len = sizeof(SimPayload) + 6;
+                        if (rx_len - i >= total_frame_len) {
                             uint16_t pay_len = 0;
                             memcpy(&pay_len, rx_buf + i + 2, 2);
                             if (pay_len == sizeof(SimPayload)) {
                                 // 验证帧尾 0xCC 0xDD
-                                if (rx_buf[i + 4 + 62] == 0xCC && rx_buf[i + 4 + 62 + 1] == 0xDD) {
+                                int tail_pos = i + 4 + sizeof(SimPayload);
+                                if (rx_buf[tail_pos] == 0xCC && rx_buf[tail_pos + 1] == 0xDD) {
                                     const SimPayload *sim = reinterpret_cast<const SimPayload*>(rx_buf + i + 4);
                                     
                                     pending_data.speed_kmh = sim->speed_kmh;
@@ -209,8 +211,8 @@ extern "C" void app_main() {
                                 }
                             }
                             // 丢弃已经处理的帧，对齐缓冲区
-                            memmove(rx_buf, rx_buf + i + 68, rx_len - (i + 68));
-                            rx_len -= (i + 68);
+                            memmove(rx_buf, rx_buf + i + total_frame_len, rx_len - (i + total_frame_len));
+                            rx_len -= (i + total_frame_len);
                             break;
                         }
                     }

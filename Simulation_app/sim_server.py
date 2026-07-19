@@ -44,7 +44,7 @@ RD_UUID  = "00000213-b2d1-43f0-9b88-960cebf8b91e"
 # f: inside_temp
 # f: outside_temp
 # 4f: tpms (fl, fr, rl, rr)
-PAYLOAD_FORMAT = "<ffifc6BBBBfff4f"
+PAYLOAD_FORMAT = "<ffifc6BBfff4f"
 
 def pack_telemetry(data):
     """
