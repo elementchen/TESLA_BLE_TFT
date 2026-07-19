@@ -8,7 +8,6 @@
 #include "esp_system.h"
 #include "driver/gpio.h"
 #include "esp_timer.h"
-#include "driver/uart.h"
 #include "sim_payload.h"
 
 #include "vehicle.h"
@@ -123,9 +122,6 @@ extern "C" void app_main() {
     init_display();
     init_tesla_ble();
     
-    // 初始化串口0接收缓冲区，用于桌面串口仿真注入
-    uart_driver_install(UART_NUM_0, 256, 0, 0, NULL, 0);
-    
     // ─── 注册并启动 LVGL 1ms 滴答定时器 ───
     const esp_timer_create_args_t tick_timer_args = {
         .callback = &lvgl_tick_timer_cb,
@@ -157,74 +153,7 @@ extern "C" void app_main() {
             current_data.valid = false;
         }
 
-        // 2. 串口注入自适应轮询与解析
-        static uint8_t rx_buf[256];
-        static int rx_len = 0;
-        
-        int available = 0;
-        uart_get_buffered_data_len(UART_NUM_0, (size_t*)&available);
-        if (available > 0) {
-            int read_len = uart_read_bytes(UART_NUM_0, rx_buf + rx_len, sizeof(rx_buf) - rx_len - 1, pdMS_TO_TICKS(5));
-            if (read_len > 0) {
-                rx_len += read_len;
-                
-                // 搜索自定义仿真数据帧头 0xAA 0xBB
-                for (int i = 0; i < rx_len - 1; i++) {
-                    if (rx_buf[i] == 0xAA && rx_buf[i+1] == 0xBB) {
-                        // 2(头) + 2(长度) + sizeof(SimPayload)(数据体) + 2(尾)
-                        int total_frame_len = sizeof(SimPayload) + 6;
-                        if (rx_len - i >= total_frame_len) {
-                            uint16_t pay_len = 0;
-                            memcpy(&pay_len, rx_buf + i + 2, 2);
-                            if (pay_len == sizeof(SimPayload)) {
-                                // 验证帧尾 0xCC 0xDD
-                                int tail_pos = i + 4 + sizeof(SimPayload);
-                                if (rx_buf[tail_pos] == 0xCC && rx_buf[tail_pos + 1] == 0xDD) {
-                                    const SimPayload *sim = reinterpret_cast<const SimPayload*>(rx_buf + i + 4);
-                                    
-                                    pending_data.speed_kmh = sim->speed_kmh;
-                                    pending_data.motor_power_kw = sim->motor_power_kw;
-                                    pending_data.battery_level = sim->battery_level;
-                                    pending_data.battery_range_km = sim->battery_range_km;
-                                    pending_data.gear = sim->gear;
-                                    
-                                    pending_data.door_open_fl = sim->doors[0];
-                                    pending_data.door_open_fr = sim->doors[1];
-                                    pending_data.door_open_rl = sim->doors[2];
-                                    pending_data.door_open_rr = sim->doors[3];
-                                    pending_data.door_open_trunk_front = sim->doors[4];
-                                    pending_data.door_open_trunk_rear = sim->doors[5];
-                                    
-                                    pending_data.locked = sim->locked;
-                                    pending_data.charging = sim->charging;
-                                    pending_data.charge_power_kw = sim->charge_power_kw;
-                                    pending_data.inside_temp = sim->inside_temp;
-                                    pending_data.outside_temp = sim->outside_temp;
-                                    
-                                    pending_data.tpms_fl = sim->tpms[0];
-                                    pending_data.tpms_fr = sim->tpms[1];
-                                    pending_data.tpms_rl = sim->tpms[2];
-                                    pending_data.tpms_rr = sim->tpms[3];
-                                    
-                                    pending_data.valid = true;
-                                    pending_data_ready = true;
-                                }
-                            }
-                            // 丢弃已经处理的帧，对齐缓冲区
-                            memmove(rx_buf, rx_buf + i + total_frame_len, rx_len - (i + total_frame_len));
-                            rx_len -= (i + total_frame_len);
-                            break;
-                        }
-                    }
-                }
-                // 防止溢出
-                if (rx_len >= sizeof(rx_buf) - 2) {
-                    rx_len = 0;
-                }
-            }
-        }
-
-        // 3. 真实遥测数据包接收路由
+        // 2. 真实遥测数据包接收路由
         if (pending_data_ready) {
             current_data = pending_data;
             current_data.ble_connected = is_connected;

@@ -3,5 +3,4 @@ bless==0.2.7
 winrt-Windows.Devices.Bluetooth==1.0.22010.2
 winrt-Windows.Devices.Bluetooth.Advertisement==1.0.22010.2
 winrt-Windows.Devices.Bluetooth.GenericAttributeProfile==1.0.22010.2
-pyserial==3.5
 protobuf==4.21.12
