@@ -14,6 +14,13 @@
 #include <cstdlib>
 
 #include "esp_lcd_ili9341.h"
+#include "ui/screens/ui_Landing.h"
+#include "ui/screens/ui_Drive.h"
+#include "ui/screens/ui_Charge.h"
+#include "ui/screens/ui_Door_open.h"
+#include "ui/screens/ui_Screen_BLE_Connect.h"
+#include "ui/screens/ui_Screen_Keycard_Pair.h"
+#include "ui/screens/ui_Screen_Session_Sync.h"
 
 #define DISPLAY_SPI_SCK_PIN     12
 #define DISPLAY_SPI_MOSI_PIN    11
@@ -23,9 +30,7 @@
 #define DISPLAY_RES             -1  // 和主控共用复位引脚
 #define DISPLAY_BLK             45
 
-static lv_obj_t *pairing_container = nullptr;
-static lv_obj_t *pairing_lbl = nullptr;
-static lv_obj_t *ui_Power_Save_Bar_Indicator = nullptr;
+// Static pointers for pairing widgets are removed as we use dedicated Screen layers.
 
 Display::~Display() {
     if (panel_) {
@@ -152,46 +157,33 @@ bool Display::init(int sda, int scl, int reset) {
     // 一键构建并加载 SquareLine UI 模块
     ui_init();
 
-    // 销毁 SquareLine 原生生成的 lv_bar 复杂控件，改用我们自己高健壮、零状态的两个普通 lv_obj 拼装而成的自制进度条
+    // 还原进度条显示：高保真设为设计稿原装 2 像素高度，彻底清除边框、外轮廓、阴影和内边距，保持极致清爽
     if (ui_Power_Save_Bar) {
-        lv_obj_del(ui_Power_Save_Bar);
-        ui_Power_Save_Bar = nullptr;
+        lv_obj_set_height(ui_Power_Save_Bar, 2);
+        
+        lv_obj_set_style_radius(ui_Power_Save_Bar, 0, LV_PART_MAIN);
+        lv_obj_set_style_radius(ui_Power_Save_Bar, 0, LV_PART_INDICATOR);
+        
+        lv_obj_set_style_border_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
+        lv_obj_set_style_border_width(ui_Power_Save_Bar, 0, LV_PART_INDICATOR);
+        
+        lv_obj_set_style_outline_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
+        lv_obj_set_style_outline_width(ui_Power_Save_Bar, 0, LV_PART_INDICATOR);
+        
+        lv_obj_set_style_shadow_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
+        lv_obj_set_style_shadow_width(ui_Power_Save_Bar, 0, LV_PART_INDICATOR);
+        
+        lv_obj_set_style_pad_all(ui_Power_Save_Bar, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(ui_Power_Save_Bar, 0, LV_PART_INDICATOR);
+
+        // 强行把进度条挪至 Z 轴最顶层，防止被时速等其他同级控件的半透明区域遮挡
+        lv_obj_move_foreground(ui_Power_Save_Bar);
     }
-    
-    // 1. 创建自制进度条背景，同样叫 ui_Power_Save_Bar，保证无需更改 display.cpp 外界任何引用的声明
-    ui_Power_Save_Bar = lv_obj_create(ui_Drive);
-    lv_obj_set_width(ui_Power_Save_Bar, 302);
-    lv_obj_set_height(ui_Power_Save_Bar, 4);
-    lv_obj_set_x(ui_Power_Save_Bar, 0);
-    lv_obj_set_y(ui_Power_Save_Bar, 50);
-    lv_obj_set_align(ui_Power_Save_Bar, LV_ALIGN_CENTER);
-    lv_obj_clear_flag(ui_Power_Save_Bar, LV_OBJ_FLAG_SCROLLABLE);
-    
-    lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0x4F4F4F), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(ui_Power_Save_Bar, 255, LV_PART_MAIN);
-    lv_obj_set_style_radius(ui_Power_Save_Bar, 0, LV_PART_MAIN);
-    lv_obj_set_style_border_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(ui_Power_Save_Bar, 0, LV_PART_MAIN);
-    lv_obj_set_style_outline_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
 
-    // 2. 创建自制进度条指示器，作为背景条的子节点
-    ui_Power_Save_Bar_Indicator = lv_obj_create(ui_Power_Save_Bar);
-    lv_obj_set_height(ui_Power_Save_Bar_Indicator, 4);
-    lv_obj_set_width(ui_Power_Save_Bar_Indicator, 0);
-    lv_obj_set_align(ui_Power_Save_Bar_Indicator, LV_ALIGN_LEFT_MID); // 左对齐
-    lv_obj_clear_flag(ui_Power_Save_Bar_Indicator, LV_OBJ_FLAG_SCROLLABLE);
-    
-    lv_obj_set_style_bg_color(ui_Power_Save_Bar_Indicator, lv_color_hex(0x00BA11), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(ui_Power_Save_Bar_Indicator, 255, LV_PART_MAIN);
-    lv_obj_set_style_radius(ui_Power_Save_Bar_Indicator, 0, LV_PART_MAIN);
-    lv_obj_set_style_border_width(ui_Power_Save_Bar_Indicator, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(ui_Power_Save_Bar_Indicator, 0, LV_PART_MAIN);
-    lv_obj_set_style_outline_width(ui_Power_Save_Bar_Indicator, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(ui_Power_Save_Bar_Indicator, 0, LV_PART_MAIN);
-
-    // 强行把自制进度条挪至 Z 轴最顶层，彻底脱离底层渲染影响
-    lv_obj_move_foreground(ui_Power_Save_Bar);
+    // 强力硬裁剪时速大字体的包围盒物理越界：限制时速容器所有子对象超出边界的渲染，封杀下沿像素渗漏
+    if (ui_Speed) {
+        lv_obj_set_style_clip_corner(ui_Speed, true, 0);
+    }
 
     initialized_ = true;
     return true;
@@ -294,6 +286,15 @@ static int gear_flash_frames = 0;
 void Display::render_dashboard(const DashData &data) {
     if (!initialized_) return;
 
+    // 强制跳转安全栅栏：如果在开始更新仪表遥测时，我们还停留在配对连接子屏，则立刻强制切入主驾驶屏
+    lv_obj_t *active_scr = lv_scr_act();
+    if (active_scr == ui_Screen_BLE_Connect || 
+        active_scr == ui_Screen_Keycard_Pair || 
+        active_scr == ui_Screen_Session_Sync) {
+        lv_scr_load(ui_Drive);
+        lv_obj_invalidate(lv_scr_act());
+    }
+
     // 档位变动检测与 20 帧特写重置 (约合 1 秒)
     if (data.gear != last_gear) {
         last_gear = data.gear;
@@ -361,9 +362,7 @@ void Display::render_dashboard(const DashData &data) {
         if (ui_Door_open_text)         lv_anim_del(ui_Door_open_text, NULL);
 
         last_screen_type = target_screen_type;
-        // 离开 Landing 页时，强行擦除隐藏自定义的配对引导与状态文字组件
-        if (pairing_container) lv_obj_add_flag(pairing_container, LV_OBJ_FLAG_HIDDEN);
-        if (pairing_lbl) lv_obj_add_flag(pairing_lbl, LV_OBJ_FLAG_HIDDEN);
+        // Dedicated pairing screens handle their own cleanup.
 
         if (target_screen_type == 1) {
             lv_scr_load(ui_Door_open);
@@ -429,29 +428,34 @@ void Display::render_dashboard(const DashData &data) {
         }
     }
 
-    if (ui_Power_Save_Bar && ui_Power_Save_Bar_Indicator) {
+    if (ui_Power_Save_Bar) {
         int power_val = (int)std::round(data.motor_power_kw);
         if (power_val < -100) power_val = -100;
         if (power_val > 100) power_val = 100;
 
-        float percent = power_val / 100.0f; // -1.0f ~ 1.0f
-        
-        static float last_percent = -999.0f;
-        if (std::abs(percent - last_percent) > 0.002f) {
-            last_percent = percent;
-            
-            if (percent >= 0.0f) {
-                // 能量消耗：红色，向右延展
-                int w = (int)(percent * 151.0f); // 302 的一半是 151
-                lv_obj_set_style_bg_color(ui_Power_Save_Bar_Indicator, lv_color_hex(0xFF0000), LV_PART_MAIN);
-                lv_obj_set_x(ui_Power_Save_Bar_Indicator, 151); // 从中点 151 起跑
-                lv_obj_set_width(ui_Power_Save_Bar_Indicator, w);
-            } else {
-                // 能量回收：绿色，向左延展
-                int w = (int)(-percent * 151.0f); // 宽度是正数
-                lv_obj_set_style_bg_color(ui_Power_Save_Bar_Indicator, lv_color_hex(0x00BA11), LV_PART_MAIN);
-                lv_obj_set_x(ui_Power_Save_Bar_Indicator, 151 - w); // 偏置保证右边缘贴着中点
-                lv_obj_set_width(ui_Power_Save_Bar_Indicator, w);
+        int cur_val = lv_bar_get_value(ui_Power_Save_Bar);
+        int cur_start = lv_bar_get_start_value(ui_Power_Save_Bar);
+
+        static int last_color_mode = -1; // -1: 初始化未知, 0: 回收(绿色), 1: 消耗(红色)
+        int target_mode = (power_val >= 0) ? 1 : 0;
+
+        if (power_val >= 0) {
+            if (cur_start != 0 || cur_val != power_val) {
+                lv_bar_set_start_value(ui_Power_Save_Bar, 0, LV_ANIM_OFF);
+                lv_bar_set_value(ui_Power_Save_Bar, power_val, LV_ANIM_OFF);
+            }
+            if (last_color_mode != target_mode) {
+                last_color_mode = target_mode;
+                lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0xFF0000), LV_PART_INDICATOR | LV_STATE_DEFAULT); // 能耗指示为红色
+            }
+        } else {
+            if (cur_start != power_val || cur_val != 0) {
+                lv_bar_set_start_value(ui_Power_Save_Bar, power_val, LV_ANIM_OFF);
+                lv_bar_set_value(ui_Power_Save_Bar, 0, LV_ANIM_OFF);
+            }
+            if (last_color_mode != target_mode) {
+                last_color_mode = target_mode;
+                lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0x00BA11), LV_PART_INDICATOR | LV_STATE_DEFAULT); // 动能回收指示为绿色
             }
         }
     }
@@ -481,73 +485,54 @@ void Display::render_dashboard(const DashData &data) {
     last_data_ = data;
 }
 
-static void create_pairing_widgets_once() {
-    if (pairing_container) return;
-
-    // 建立一个精美的卡片大框（模拟钥匙卡片放在杯架中控台）
-    pairing_container = lv_obj_create(ui_Landing);
-    lv_obj_set_size(pairing_container, 130, 75);
-    lv_obj_align(pairing_container, LV_ALIGN_CENTER, 0, 45);
-    lv_obj_set_style_border_width(pairing_container, 2, 0);
-    lv_obj_set_style_border_color(pairing_container, lv_color_hex(0x18C3C3), 0); // 青绿色边框
-    lv_obj_set_style_bg_color(pairing_container, lv_color_hex(0x111111), 0);
-    lv_obj_set_style_bg_opa(pairing_container, 200, 0);
-    lv_obj_clear_flag(pairing_container, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *card_icon = lv_obj_create(pairing_container);
-    lv_obj_set_size(card_icon, 50, 30);
-    lv_obj_align(card_icon, LV_ALIGN_CENTER, 0, -10);
-    lv_obj_set_style_border_width(card_icon, 1, 0);
-    lv_obj_set_style_border_color(card_icon, lv_color_white(), 0);
-    lv_obj_set_style_bg_color(card_icon, lv_color_hex(0x333333), 0);
-
-    lv_obj_t *nfc_txt = lv_label_create(pairing_container);
-    lv_obj_align(nfc_txt, LV_ALIGN_CENTER, 0, 18);
-    lv_label_set_text(nfc_txt, "TAP KEYCARD");
-    lv_obj_set_style_text_font(nfc_txt, &lv_font_montserrat_14, 0); // 替换成 14 内置字体
-    lv_obj_set_style_text_color(nfc_txt, lv_color_white(), 0);
-
-    // 状态指示文本 Label
-    pairing_lbl = lv_label_create(ui_Landing);
-    lv_obj_align(pairing_lbl, LV_ALIGN_BOTTOM_MID, 0, -12);
-    lv_obj_set_style_text_font(pairing_lbl, &lv_font_montserrat_14, 0);
-}
-
 void Display::show_pairing(const std::string &msg) {
     if (!initialized_) return;
-    
-    // 强制处于 Landing 界面以作展示
-    if (lv_scr_act() != ui_Landing) {
-        lv_scr_load(ui_Landing);
-        lv_obj_invalidate(lv_scr_act());
+
+    // "TAP KEYCARD ON CENTER CONSOLE" -> 切换至高保真钥匙卡片配对页
+    if (ui_Screen_Keycard_Pair) {
+        if (lv_scr_act() != ui_Screen_Keycard_Pair) {
+            lv_scr_load(ui_Screen_Keycard_Pair);
+            lv_obj_invalidate(lv_scr_act());
+        }
+        if (ui_Pair_Status) {
+            const char *cur_txt = lv_label_get_text(ui_Pair_Status);
+            if (!cur_txt || strcmp(cur_txt, msg.c_str()) != 0) {
+                lv_label_set_text(ui_Pair_Status, msg.c_str());
+            }
+        }
     }
-
-    create_pairing_widgets_once();
-
-    // 显示 NFC 钥匙卡片组件并展示红色高亮刷卡警告语
-    lv_obj_clear_flag(pairing_container, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_clear_flag(pairing_lbl, LV_OBJ_FLAG_HIDDEN);
-
-    lv_label_set_text(pairing_lbl, msg.c_str());
-    lv_obj_set_style_text_color(pairing_lbl, lv_color_hex(0xFF0000), 0); // 红色高亮
 }
 
 void Display::show_pairing_status(const std::string &msg) {
     if (!initialized_) return;
 
-    if (lv_scr_act() != ui_Landing) {
-        lv_scr_load(ui_Landing);
-        lv_obj_invalidate(lv_scr_act());
+    if (msg.find("Syncing") != std::string::npos) {
+        // "BLE connected! Syncing telemetry..." -> 切换至密钥会话同步页，并触发 loading 旋转动画
+        if (ui_Screen_Session_Sync) {
+            if (lv_scr_act() != ui_Screen_Session_Sync) {
+                lv_scr_load(ui_Screen_Session_Sync);
+                lv_obj_invalidate(lv_scr_act());
+                // 启动 loading 旋转动画
+                if (ui_loading_animation) {
+                    loading_Animation(ui_loading_animation, 0);
+                }
+            }
+        }
+    } else {
+        // "Connecting to Vehicle (BLE)..." -> 切换至动态寻址连接页
+        if (ui_Screen_BLE_Connect) {
+            if (lv_scr_act() != ui_Screen_BLE_Connect) {
+                lv_scr_load(ui_Screen_BLE_Connect);
+                lv_obj_invalidate(lv_scr_act());
+            }
+            if (ui_BLE_Status_Label) {
+                const char *cur_txt = lv_label_get_text(ui_BLE_Status_Label);
+                if (!cur_txt || strcmp(cur_txt, msg.c_str()) != 0) {
+                    lv_label_set_text(ui_BLE_Status_Label, msg.c_str());
+                }
+            }
+        }
     }
-
-    create_pairing_widgets_once();
-
-    // 隐藏 NFC 钥匙卡片，仅展示普通的灰色连接提示状态
-    lv_obj_add_flag(pairing_container, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_clear_flag(pairing_lbl, LV_OBJ_FLAG_HIDDEN);
-
-    lv_label_set_text(pairing_lbl, msg.c_str());
-    lv_obj_set_style_text_color(pairing_lbl, lv_color_hex(0x808080), 0); // 灰色连接提示
 }
 
 void Display::clear() {}

@@ -15,8 +15,8 @@ extern void ui_Drive_screen_init(void);
 extern void ui_Drive_screen_destroy(void);
 extern void ui_event_Drive(lv_event_t * e);
 extern lv_obj_t * ui_Drive;
+extern lv_obj_t * ui_Speed;
 extern lv_obj_t * ui_Speed_Label;
-extern lv_obj_t * ui_Power_Save_Bar;
 extern lv_obj_t * ui_Speed_Unit;
 extern lv_obj_t * ui_FSD_icon;
 extern lv_obj_t * ui_Cargear;
@@ -29,6 +29,7 @@ extern lv_obj_t * ui_Tire_left_back;
 extern lv_obj_t * ui_Temperature;
 extern lv_obj_t * ui_Inside_Temp;
 extern lv_obj_t * ui_Outside_Temp;
+extern lv_obj_t * ui_Power_Save_Bar;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus
