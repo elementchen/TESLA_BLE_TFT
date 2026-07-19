@@ -1,6 +1,8 @@
 #include "ble_adapter.h"
 #include "esp_log.h"
 #include "mbedtls/sha1.h"
+#include "dash_data.h"
+#include "sim_payload.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "esp_nimble_hci.h"
@@ -384,7 +386,43 @@ void BleAdapterImpl::send_one() {
 // ─── RX ──────────────────────────────────────────────────────────
 // BLE notifications from Tesla vehicle are complete protobuf messages
 // without a 2-byte length prefix. Pass directly to the Tesla library.
+extern DashData pending_data;
+extern bool pending_data_ready;
+
 void BleAdapterImpl::on_rx(const uint8_t *d, size_t n) {
+    if (n == sizeof(SimPayload)) {
+        // 自适应劫持 Windows 仿真端发出的 SimPayload 裸遥测包，跳过实车 ECDH 加密解密通道
+        const SimPayload *sim = reinterpret_cast<const SimPayload*>(d);
+        
+        pending_data.speed_kmh = sim->speed_kmh;
+        pending_data.motor_power_kw = sim->motor_power_kw;
+        pending_data.battery_level = sim->battery_level;
+        pending_data.battery_range_km = sim->battery_range_km;
+        pending_data.gear = sim->gear;
+        
+        pending_data.door_open_fl = sim->doors[0];
+        pending_data.door_open_fr = sim->doors[1];
+        pending_data.door_open_rl = sim->doors[2];
+        pending_data.door_open_rr = sim->doors[3];
+        pending_data.door_open_trunk_front = sim->doors[4];
+        pending_data.door_open_trunk_rear = sim->doors[5];
+        
+        pending_data.locked = sim->locked;
+        pending_data.charging = sim->charging;
+        pending_data.charge_power_kw = sim->charge_power_kw;
+        pending_data.inside_temp = sim->inside_temp;
+        pending_data.outside_temp = sim->outside_temp;
+        
+        pending_data.tpms_fl = sim->tpms[0];
+        pending_data.tpms_fr = sim->tpms[1];
+        pending_data.tpms_rl = sim->tpms[2];
+        pending_data.tpms_rr = sim->tpms[3];
+        
+        pending_data.valid = true;
+        pending_data_ready = true;
+        return; // 直接返回，不要向下派发以防止 AES 库解密出错崩溃
+    }
+
     std::vector<uint8_t> msg(d, d+n);
     if(data_cb_)data_cb_(msg);
 }

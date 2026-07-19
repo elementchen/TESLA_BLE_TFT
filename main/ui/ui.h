@@ -20,7 +20,9 @@ extern "C" {
 
 ///////////////////// SCREENS ////////////////////
 
-#include "screens/ui_Landing.h"
+#include "screens/ui_Screen_BLE_Connect.h"
+#include "screens/ui_Screen_Keycard_Pair.h"
+#include "screens/ui_Screen_Session_Sync.h"
 #include "screens/ui_Drive.h"
 #include "screens/ui_Charge.h"
 #include "screens/ui_Door_open.h"
@@ -33,12 +35,17 @@ extern lv_anim_t * min_Animation(lv_obj_t * TargetObject, int delay);
 extern lv_anim_t * sec_Animation(lv_obj_t * TargetObject, int delay);
 extern lv_anim_t * scrolldot_Animation(lv_obj_t * TargetObject, int delay);
 extern lv_anim_t * dooropen_Animation(lv_obj_t * TargetObject, int delay);
+extern lv_anim_t * loading_Animation(lv_obj_t * TargetObject, int delay);
 
 // EVENTS
 
 extern lv_obj_t * ui____initial_actions0;
 
 // IMAGES AND IMAGE SETS
+LV_IMG_DECLARE(ui_img_landing_png);    // assets/landing.png
+LV_IMG_DECLARE(ui_img_keycard_png);    // assets/KeyCard.png
+LV_IMG_DECLARE(ui_img_sync_png);    // assets/sync.png
+LV_IMG_DECLARE(ui_img_loading_png);    // assets/loading.png
 LV_IMG_DECLARE(ui_img_fsd_png);    // assets/FSD.png
 LV_IMG_DECLARE(ui_img_car1_png);    // assets/car1.png
 LV_IMG_DECLARE(ui_img_charger_power_png);    // assets/charger_power.png

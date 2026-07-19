@@ -13,6 +13,7 @@ lv_anim_t * min_Animation(lv_obj_t * TargetObject, int delay);
 lv_anim_t * sec_Animation(lv_obj_t * TargetObject, int delay);
 lv_anim_t * scrolldot_Animation(lv_obj_t * TargetObject, int delay);
 lv_anim_t * dooropen_Animation(lv_obj_t * TargetObject, int delay);
+lv_anim_t * loading_Animation(lv_obj_t * TargetObject, int delay);
 
 // EVENTS
 lv_obj_t * ui____initial_actions0;
@@ -30,9 +31,7 @@ lv_obj_t * ui____initial_actions0;
 ///////////////////// ANIMATIONS ////////////////////
 lv_anim_t * chargepower_Animation(lv_obj_t * TargetObject, int delay)
 {
-    // 防御性清除 TargetObject 上已有的老旧无限循环动画，彻底消除内存与句柄泄漏
     lv_anim_del(TargetObject, NULL);
-
     lv_anim_t * out_anim;
     ui_anim_user_data_t * PropertyAnimation_0_user_data = lv_mem_alloc(sizeof(ui_anim_user_data_t));
     PropertyAnimation_0_user_data->target = TargetObject;
@@ -208,9 +207,7 @@ lv_anim_t * scrolldot_Animation(lv_obj_t * TargetObject, int delay)
 }
 lv_anim_t * dooropen_Animation(lv_obj_t * TargetObject, int delay)
 {
-    // 防御性清除 TargetObject 上已有的老旧无限循环动画，彻底消除内存与句柄泄漏
     lv_anim_del(TargetObject, NULL);
-
     lv_anim_t * out_anim;
     ui_anim_user_data_t * PropertyAnimation_0_user_data = lv_mem_alloc(sizeof(ui_anim_user_data_t));
     PropertyAnimation_0_user_data->target = TargetObject;
@@ -233,6 +230,32 @@ lv_anim_t * dooropen_Animation(lv_obj_t * TargetObject, int delay)
 
     return out_anim;
 }
+lv_anim_t * loading_Animation(lv_obj_t * TargetObject, int delay)
+{
+    lv_anim_del(TargetObject, NULL);
+    lv_anim_t * out_anim;
+    ui_anim_user_data_t * PropertyAnimation_0_user_data = lv_mem_alloc(sizeof(ui_anim_user_data_t));
+    PropertyAnimation_0_user_data->target = TargetObject;
+    PropertyAnimation_0_user_data->val = -1;
+    lv_anim_t PropertyAnimation_0;
+    lv_anim_init(&PropertyAnimation_0);
+    lv_anim_set_time(&PropertyAnimation_0, 5000);
+    lv_anim_set_user_data(&PropertyAnimation_0, PropertyAnimation_0_user_data);
+    lv_anim_set_custom_exec_cb(&PropertyAnimation_0, _ui_anim_callback_set_image_angle);
+    lv_anim_set_values(&PropertyAnimation_0, 0, 3600);
+    lv_anim_set_path_cb(&PropertyAnimation_0, lv_anim_path_linear);
+    lv_anim_set_delay(&PropertyAnimation_0, delay + 0);
+    lv_anim_set_deleted_cb(&PropertyAnimation_0, _ui_anim_callback_free_user_data);
+    lv_anim_set_playback_time(&PropertyAnimation_0, 0);
+    lv_anim_set_playback_delay(&PropertyAnimation_0, 0);
+    lv_anim_set_repeat_count(&PropertyAnimation_0, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_set_repeat_delay(&PropertyAnimation_0, 0);
+    lv_anim_set_early_apply(&PropertyAnimation_0, false);
+    lv_anim_set_get_value_cb(&PropertyAnimation_0, &_ui_anim_callback_get_image_angle);
+    out_anim = lv_anim_start(&PropertyAnimation_0);
+
+    return out_anim;
+}
 
 ///////////////////// FUNCTIONS ////////////////////
 
@@ -245,17 +268,21 @@ void ui_init(void)
     lv_disp_t * dispp = lv_disp_get_default();
     lv_theme_t * theme = lv_theme_basic_init(dispp);
     lv_disp_set_theme(dispp, theme);
-    ui_Landing_screen_init();
+    ui_Screen_BLE_Connect_screen_init();
+    ui_Screen_Keycard_Pair_screen_init();
+    ui_Screen_Session_Sync_screen_init();
     ui_Drive_screen_init();
     ui_Charge_screen_init();
     ui_Door_open_screen_init();
     ui____initial_actions0 = lv_obj_create(NULL);
-    lv_disp_load_scr(ui_Landing);
+    lv_disp_load_scr(ui_Screen_BLE_Connect);
 }
 
 void ui_destroy(void)
 {
-    ui_Landing_screen_destroy();
+    ui_Screen_BLE_Connect_screen_destroy();
+    ui_Screen_Keycard_Pair_screen_destroy();
+    ui_Screen_Session_Sync_screen_destroy();
     ui_Drive_screen_destroy();
     ui_Charge_screen_destroy();
     ui_Door_open_screen_destroy();
