@@ -147,6 +147,11 @@ extern "C" void app_main() {
     current_data.ble_connected = false;
 
     while (true) {
+        // 驱动 BLE 适配器内部的延迟服务探索与发送队列
+        if (ble_adapter) {
+            ble_adapter->process();
+        }
+
         // 1. 同步物理蓝牙底层连接状态
         bool is_connected = ble_adapter && ble_adapter->is_connected();
         current_data.ble_connected = is_connected;
