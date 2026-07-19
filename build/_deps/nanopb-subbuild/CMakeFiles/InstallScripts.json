@@ -1,7 +1,7 @@
 {
 	"InstallScripts" : 
 	[
-		"/Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/_deps/nanopb-subbuild/cmake_install.cmake"
+		"E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/_deps/nanopb-subbuild/cmake_install.cmake"
 	],
 	"Parallel" : false
 }

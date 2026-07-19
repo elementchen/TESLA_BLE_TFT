@@ -2,17 +2,16 @@
 
 #include <cstdint>
 
-// 4-bit 抗锯齿 Sans-Serif 小号字库 (ASCII 32 - 126)
-// 每个字符 64 字节。每行 8 像素占用 4 字节。
-extern const uint8_t font8x16_aa[95][64];
+// 1-bit 清纯无抗锯齿 6x12 像素点阵小字库 (ASCII 32 - 126)
+// 每个字符仅占 12 字节。
+extern const uint8_t font6x12_raw[95][12];
 
-// 4-bit 抗锯齿 Sans-Serif 大号字库 (ASCII 32 - 126)
-// 每个字符 256 字节。每行 16 像素占用 8 字节。
+// 4-bit 抗锯齿 Sans-Serif 中号字库 (ASCII 32 - 126)
+// 每个字符 256 字节。
 extern const uint8_t font16x32_aa[95][256];
 
-// 4-bit 抗锯齿特大号数字字库 ('0'-'9' 以及 '-', ' ', '.')
-// 每个字符 576 字节。每行 24 像素占用 12 字节。
-extern const uint8_t font24x48_nums_aa[13][576];
+// 4-bit 抗锯齿巨型数字与档位字库 ('0'-'9' 以及 '-', ' ', '.', 'P', 'R', 'N', 'D', 'S')
+// 每个字符 1600 字节。每行 40 像素占用 20 字节。
+extern const uint8_t font40x80_nums_aa[18][1600];
 
-// 获取数字字符在 font24x48_nums_aa 中的索引
-int get_font24x48_index(char c);
+int get_font40x80_index(char c);

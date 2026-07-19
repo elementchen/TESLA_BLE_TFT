@@ -164,5 +164,10 @@ $<TARGET_FILE:idf::usb>
 $<TARGET_FILE:idf::wifi_provisioning>
 $<TARGET_FILE:__idf_json>
 $<TARGET_FILE:idf::tesla-ble>
+$<TARGET_FILE:idf::lvgl__lvgl>
+$<TARGET_FILE:idf::espressif__esp_lcd_ili9341>
+$<TARGET_FILE:__idf_esp_lcd>
 $<TARGET_FILE:idf::main>
 $<TARGET_FILE:__idf_tesla-ble>
+$<TARGET_FILE:__idf_lvgl__lvgl>
+$<TARGET_FILE:__idf_espressif__esp_lcd_ili9341>

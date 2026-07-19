@@ -1,0 +1,21 @@
+Command: ninja flash
+[1/5] C:\WINDOWS\system32\cmd.exe /C "cd /D E:\AI_coding_test\_Gemini\TESLA_BLE_TFT\build\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.10_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 partition --type app E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/partition_table/partition-table.bin E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/tesla_ble_dash.bin"
+tesla_ble_dash.bin binary size 0x130540 bytes. Smallest app partition is 0x400000 bytes. 0x2cfac0 bytes (70%) free.
+[2/5] Performing build step for 'bootloader'
+[1/1] C:\WINDOWS\system32\cmd.exe /C "cd /D E:\AI_coding_test\_Gemini\TESLA_BLE_TFT\build\bootloader\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.10_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/bootloader/bootloader.bin"
+Bootloader binary size 0x5700 bytes. 0x2900 bytes (32%) free.
+[3/5] No install step for 'bootloader'
+[4/5] Completed 'bootloader'
+[4/5] C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Espressif\frameworks\esp-idf-v5.5.4\components\esptool_py && C:\Users\cweix\AppData\Local\Programs\Python\Python310\Lib\site-packages\cmake\data\bin\cmake.exe -D IDF_PATH=C:/Espressif/frameworks/esp-idf-v5.5.4 -D SERIAL_TOOL=C:/Espressif/python_env/idf5.5_py3.10_env/Scripts/python.exe;;C:/Espressif/frameworks/esp-idf-v5.5.4/components/esptool_py/esptool/esptool.py;--chip;esp32s3 -D SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args -D WORKING_DIRECTORY=E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build -P C:/Espressif/frameworks/esp-idf-v5.5.4/components/esptool_py/run_serial_tool.cmake"
+esptool.py --chip esp32s3 -p COM7 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB 0x0 bootloader/bootloader.bin 0x20000 tesla_ble_dash.bin 0x8000 partition_table/partition-table.bin
+esptool.py v4.10.dev2
+Serial port COM7
+
+A fatal error occurred: Could not open COM7, the port is busy or doesn't exist.
+(could not open port 'COM7': FileNotFoundError(2, '系统找不到指定的文件。', None, 2))
+
+Hint: Check if the port is correct and ESP connected
+
+FAILED: [code=1] CMakeFiles/flash E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/CMakeFiles/flash 
+C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Espressif\frameworks\esp-idf-v5.5.4\components\esptool_py && C:\Users\cweix\AppData\Local\Programs\Python\Python310\Lib\site-packages\cmake\data\bin\cmake.exe -D IDF_PATH=C:/Espressif/frameworks/esp-idf-v5.5.4 -D SERIAL_TOOL=C:/Espressif/python_env/idf5.5_py3.10_env/Scripts/python.exe;;C:/Espressif/frameworks/esp-idf-v5.5.4/components/esptool_py/esptool/esptool.py;--chip;esp32s3 -D SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args -D WORKING_DIRECTORY=E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build -P C:/Espressif/frameworks/esp-idf-v5.5.4/components/esptool_py/run_serial_tool.cmake"
+ninja: build stopped: subcommand failed.

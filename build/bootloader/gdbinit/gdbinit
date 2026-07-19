@@ -1,2 +1,2 @@
-source /Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/bootloader/gdbinit/symbols
-source /Users/openclaw/Desktop/projects/Tesla_BLE_Dash/build/bootloader/gdbinit/connect
+source E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/bootloader/gdbinit/symbols
+source E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/bootloader/gdbinit/connect

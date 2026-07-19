@@ -1,0 +1,64 @@
+Command: ninja flash
+[1/5] C:\WINDOWS\system32\cmd.exe /C "cd /D E:\AI_coding_test\_Gemini\TESLA_BLE_TFT\build\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.10_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 partition --type app E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/partition_table/partition-table.bin E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/tesla_ble_dash.bin"
+tesla_ble_dash.bin binary size 0x130540 bytes. Smallest app partition is 0x400000 bytes. 0x2cfac0 bytes (70%) free.
+[2/5] Performing build step for 'bootloader'
+[1/1] C:\WINDOWS\system32\cmd.exe /C "cd /D E:\AI_coding_test\_Gemini\TESLA_BLE_TFT\build\bootloader\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.10_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/bootloader/bootloader.bin"
+Bootloader binary size 0x5700 bytes. 0x2900 bytes (32%) free.
+[3/5] No install step for 'bootloader'
+[4/5] Completed 'bootloader'
+[4/5] C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Espressif\frameworks\esp-idf-v5.5.4\components\esptool_py && C:\Users\cweix\AppData\Local\Programs\Python\Python310\Lib\site-packages\cmake\data\bin\cmake.exe -D IDF_PATH=C:/Espressif/frameworks/esp-idf-v5.5.4 -D SERIAL_TOOL=C:/Espressif/python_env/idf5.5_py3.10_env/Scripts/python.exe;;C:/Espressif/frameworks/esp-idf-v5.5.4/components/esptool_py/esptool/esptool.py;--chip;esp32s3 -D SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args -D WORKING_DIRECTORY=E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build -P C:/Espressif/frameworks/esp-idf-v5.5.4/components/esptool_py/run_serial_tool.cmake"
+esptool.py --chip esp32s3 -p COM10 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB 0x0 bootloader/bootloader.bin 0x20000 tesla_ble_dash.bin 0x8000 partition_table/partition-table.bin
+esptool.py v4.10.dev2
+Serial port COM10
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 28:84:85:42:11:58
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x00005fff...
+Flash will be erased from 0x00020000 to 0x00150fff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+SHA digest in image updated
+Compressed 22272 bytes to 14241...
+Writing at 0x00000000... (100 %)
+Wrote 22272 bytes (14241 compressed) at 0x00000000 in 0.5 seconds (effective 363.8 kbit/s)...
+Hash of data verified.
+Compressed 1246528 bytes to 356604...
+Writing at 0x00020000... (4 %)
+Writing at 0x0002ba9f... (9 %)
+Writing at 0x0006b84c... (13 %)
+Writing at 0x000aa02c... (18 %)
+Writing at 0x000d136a... (22 %)
+Writing at 0x000de7a9... (27 %)
+Writing at 0x000e75c9... (31 %)
+Writing at 0x000f349c... (36 %)
+Writing at 0x000f963e... (40 %)
+Writing at 0x000ff96e... (45 %)
+Writing at 0x00105be3... (50 %)
+Writing at 0x0010b6ac... (54 %)
+Writing at 0x001112ae... (59 %)
+Writing at 0x00116e5b... (63 %)
+Writing at 0x0011cce0... (68 %)
+Writing at 0x0012300f... (72 %)
+Writing at 0x001294fb... (77 %)
+Writing at 0x0012f1c9... (81 %)
+Writing at 0x0013821a... (86 %)
+Writing at 0x0013ef5f... (90 %)
+Writing at 0x00144d1e... (95 %)
+Writing at 0x0014b607... (100 %)
+Wrote 1246528 bytes (356604 compressed) at 0x00020000 in 8.8 seconds (effective 1131.0 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 106...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (106 compressed) at 0x00008000 in 0.1 seconds (effective 354.7 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...
