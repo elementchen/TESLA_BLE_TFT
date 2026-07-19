@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "tesla_ble_dash",
-    "project_version":    "0abd886-dirty",
+    "project_version":    "883ede6-dirty",
     "project_path":       "E:/AI_coding_test/_Gemini/TESLA_BLE_TFT",
     "idf_path":           "C:/Espressif/frameworks/esp-idf-v5.5.4",
     "build_dir":          "E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build",

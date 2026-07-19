@@ -6,11 +6,6 @@ import argparse
 import asyncio
 from datetime import datetime
 
-# 尝试载入第三方库
-try:
-    import serial
-except ImportError:
-    serial = None
 
 try:
     from bless import (
@@ -306,64 +301,11 @@ async def run_ble_simulation():
         print("[+] 正在停止 BLE 服务器...")
         await server.stop()
 
-def run_uart_simulation(port, baudrate=115200):
-    """
-    串口数据注入仿真模式
-    """
-    if not serial:
-        print("[-] 错误: 未安装 pyserial 库，请运行 pip install -r requirements.txt 安装。")
-        return
-
-    print(f"[+] 正在打开串口: {port} (波特率: {baudrate})...")
-    try:
-        ser = serial.Serial(port, baudrate, timeout=1)
-    except Exception as e:
-        print(f"[-] 错误: 无法打开串口 {port}: {e}")
-        return
-
-    print("[+] 串口打开成功！正在通过串口线以 20Hz 实时注入车机遥测包...")
-    print("[+] 提示: 请将 ESP32 上的 USB 调试串口插入电脑并确保端口号正确。")
-
-    frame = 0
-    # 数据包头包尾
-    FRAME_HEAD = b'\xAA\xBB'
-    FRAME_TAIL = b'\xCC\xDD'
-
-    try:
-        while True:
-            mock_data = generate_mock_frame(frame)
-            payload = pack_telemetry(mock_data)
-            
-            # 打包成防干扰帧: [0xAA 0xBB] + [2字节长度] + [数据体] + [0xCC 0xDD]
-            length_bytes = struct.pack("<H", len(payload))
-            frame_bytes = FRAME_HEAD + length_bytes + payload + FRAME_TAIL
-            
-            ser.write(frame_bytes)
-            ser.flush()
-            
-            if frame % 40 == 0:
-                print(f"[UART-Inject] 注入遥测数据包: Speed={mock_data['speed_kmh']:.1f} KM/H, Gear={mock_data['gear']}, SOC={mock_data['battery_level']}%")
-            
-            frame += 1
-            time.sleep(0.05) # 20Hz
-    except KeyboardInterrupt:
-        print("[+] 正在关闭串口...")
-        ser.close()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Tesla Dash HMI Simulation Server")
-    parser.add_argument("--mode", type=str, choices=["ble", "uart"], default="uart",
-                        help="仿真模式: ble (低功耗蓝牙无线外设) 或 uart (串口极速注入)")
-    parser.add_argument("--port", type=str, default="COM10",
-                        help="串口仿真所连接的 ESP32 串口端口号 (仅在 --mode uart 时生效)")
-    args = parser.parse_args()
-
     print("==========================================================")
-    print("      Tesla BLE HMI Simulation Server (Windows Client)    ")
+    print("      Tesla BLE HMI BLE-only Simulation Server            ")
     print("==========================================================")
     
-    if args.mode == "uart":
-        run_uart_simulation(args.port)
-    else:
-        # BLE 模式属于异步任务
-        asyncio.run(run_ble_simulation())
+    # BLE 模式属于异步任务
+    asyncio.run(run_ble_simulation())
