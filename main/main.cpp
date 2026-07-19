@@ -98,6 +98,9 @@ static void init_tesla_ble() {
     vehicle->set_vin(TESLA_VIN);
     vehicle->set_drive_state_callback(on_drive_state);
     vehicle->set_vehicle_status_callback(on_vehicle_status);
+    
+    // 必须调用初始化，以启动 NimBLE 任务栈和蓝牙广播扫描
+    ble_adapter->init(TESLA_VIN);
 }
 
 // ---------- 初始化显示屏幕 ----------
