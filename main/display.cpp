@@ -8,24 +8,24 @@
 #include "esp_lcd_panel_vendor.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_timer.h"
-#include "images.h"
 #include <cstdio>
 #include <cmath>
 #include <cstring>
 #include <cstdlib>
 
-#define DISPLAY_SPI_SCK_PIN     21
-#define DISPLAY_SPI_MOSI_PIN    47
-#define DISPLAY_DC_PIN          40
-#define DISPLAY_SPI_CS_PIN      41
-#define DISPLAY_RES             45
-#define DISPLAY_BLK             42
+#include "esp_lcd_ili9341.h"
 
-// 外部 1-bit raw 点阵小字库与 4-bit AA 中大字库声明
-extern const uint8_t font6x12_raw[95][12];
-extern const uint8_t font16x32_aa[95][256];
-extern const uint8_t font40x80_nums_aa[18][1600];
-int get_font40x80_index(char c);
+#define DISPLAY_SPI_SCK_PIN     12
+#define DISPLAY_SPI_MOSI_PIN    11
+#define DISPLAY_SPI_MISO_PIN    13
+#define DISPLAY_DC_PIN          46
+#define DISPLAY_SPI_CS_PIN      10
+#define DISPLAY_RES             -1  // 和主控共用复位引脚
+#define DISPLAY_BLK             45
+
+static lv_obj_t *pairing_container = nullptr;
+static lv_obj_t *pairing_lbl = nullptr;
+static lv_obj_t *ui_Power_Save_Bar_Indicator = nullptr;
 
 Display::~Display() {
     if (panel_) {
@@ -37,8 +37,49 @@ Display::~Display() {
     spi_bus_free(SPI3_HOST);
 }
 
+// ─── DMA 传输完毕中断通知 LVGL 回调 (异步防撕裂) ───
+static bool notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx) {
+    lv_disp_drv_t *disp_driver = (lv_disp_drv_t *)user_ctx;
+    lv_disp_flush_ready(disp_driver);
+    return false;
+}
+
+// ─── LVGL Flush 回调函数 (阴影发送缓存对换字节，完美防抗锯齿花屏) ───────────
+
+void Display::my_disp_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
+    Display *display = (Display *)disp_drv->user_data;
+    if (!display || !display->panel_) {
+        lv_disp_flush_ready(disp_drv);
+        return;
+    }
+
+    int x1 = area->x1;
+    int y1 = area->y1;
+    int w = area->x2 - area->x1 + 1;
+    int h = area->y2 - area->y1 + 1;
+
+    // 分配 320x40 像素的临时硬件发送缓存，确保原 LVGL Draw Buffer (color_p) 绝不受字节翻转的物理篡改
+    static uint16_t flush_buf[SCREEN_W * 40];
+    int total_pixels = w * h;
+    if (total_pixels <= SCREEN_W * 40) {
+        uint16_t *src = (uint16_t *)color_p;
+        for (int i = 0; i < total_pixels; i++) {
+            uint16_t color = src[i];
+            flush_buf[i] = (color >> 8) | (color << 8);
+        }
+        esp_lcd_panel_draw_bitmap(display->panel_, x1, y1, x1 + w, y1 + h, flush_buf);
+    } else {
+        // 极端溢出防御
+        esp_lcd_panel_draw_bitmap(display->panel_, x1, y1, x1 + w, y1 + h, (uint16_t *)color_p);
+    }
+    
+    // 【异步设计】：此处不再同步调用 lv_disp_flush_ready，改由 DMA 发送完毕中断自动通知
+}
+
+// ─── 驱动初始化与 LVGL 核心注册 ───────────────────────────────────────────
+
 bool Display::init(int sda, int scl, int reset) {
-    ESP_LOGI(TAG, "Initializing ST7789 SPI LCD...");
+    ESP_LOGI(TAG, "Initializing ILI9341 SPI LCD...");
 
     gpio_config_t bk_gpio_config = {};
     bk_gpio_config.mode = GPIO_MODE_OUTPUT;
@@ -48,7 +89,7 @@ bool Display::init(int sda, int scl, int reset) {
 
     spi_bus_config_t buscfg = {};
     buscfg.mosi_io_num = DISPLAY_SPI_MOSI_PIN;
-    buscfg.miso_io_num = -1;
+    buscfg.miso_io_num = DISPLAY_SPI_MISO_PIN;
     buscfg.sclk_io_num = DISPLAY_SPI_SCK_PIN;
     buscfg.quadwp_io_num = -1;
     buscfg.quadhd_io_num = -1;
@@ -58,12 +99,18 @@ bool Display::init(int sda, int scl, int reset) {
         return false;
     }
 
+    // 提前实例化静态驱动，以便将其地址绑定给 DMA 传输完成回调上下文
+    static lv_disp_drv_t disp_drv;
+    lv_disp_drv_init(&disp_drv);
+
     esp_lcd_panel_io_spi_config_t io_config = {};
     io_config.cs_gpio_num = DISPLAY_SPI_CS_PIN;
     io_config.dc_gpio_num = DISPLAY_DC_PIN;
-    io_config.spi_mode = 3;
-    io_config.pclk_hz = 80 * 1000 * 1000;
+    io_config.spi_mode = 0; // ILI9341 SPI MODE 0
+    io_config.pclk_hz = 40 * 1000 * 1000; // ILI9341 SPI 降至 40MHz 确保极致电气传输稳定
     io_config.trans_queue_depth = 10;
+    io_config.on_color_trans_done = notify_lvgl_flush_ready; // 注册 DMA 中断回调
+    io_config.user_ctx = &disp_drv; // 将驱动指针传入回调上下文
     io_config.lcd_cmd_bits = 8;
     io_config.lcd_param_bits = 8;
     ret = esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io_);
@@ -73,9 +120,9 @@ bool Display::init(int sda, int scl, int reset) {
 
     esp_lcd_panel_dev_config_t panel_config = {};
     panel_config.reset_gpio_num = DISPLAY_RES;
-    panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+    panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR; // ILI9341 BGR 色序
     panel_config.bits_per_pixel = 16;
-    ret = esp_lcd_new_panel_st7789(panel_io_, &panel_config, &panel_);
+    ret = esp_lcd_new_panel_ili9341(panel_io_, &panel_config, &panel_);
     if (ret != ESP_OK) {
         return false;
     }
@@ -83,766 +130,427 @@ bool Display::init(int sda, int scl, int reset) {
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_));
     ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, false, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, false));
+    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, false, false)); // 纠正左右镜像
+    ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true));   // 纠正反相颜色
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
+    // ─── 注册并初始化 LVGL v8 图形引擎 ───
+    lv_init();
+
+    // 内部高速 SRAM 缓冲区，大小为 320x40，流式输出效率极高且不占用太多RAM
+    static lv_disp_draw_buf_t draw_buf;
+    static lv_color_t buf1[SCREEN_W * 40];
+    lv_disp_draw_buf_init(&draw_buf, buf1, NULL, SCREEN_W * 40);
+
+    disp_drv.hor_res = SCREEN_W;
+    disp_drv.ver_res = SCREEN_H;
+    disp_drv.flush_cb = my_disp_flush_cb;
+    disp_drv.draw_buf = &draw_buf;
+    disp_drv.user_data = this;
+    lv_disp_drv_register(&disp_drv);
+
+    // 一键构建并加载 SquareLine UI 模块
+    ui_init();
+
+    // 销毁 SquareLine 原生生成的 lv_bar 复杂控件，改用我们自己高健壮、零状态的两个普通 lv_obj 拼装而成的自制进度条
+    if (ui_Power_Save_Bar) {
+        lv_obj_del(ui_Power_Save_Bar);
+        ui_Power_Save_Bar = nullptr;
+    }
+    
+    // 1. 创建自制进度条背景，同样叫 ui_Power_Save_Bar，保证无需更改 display.cpp 外界任何引用的声明
+    ui_Power_Save_Bar = lv_obj_create(ui_Drive);
+    lv_obj_set_width(ui_Power_Save_Bar, 302);
+    lv_obj_set_height(ui_Power_Save_Bar, 4);
+    lv_obj_set_x(ui_Power_Save_Bar, 0);
+    lv_obj_set_y(ui_Power_Save_Bar, 50);
+    lv_obj_set_align(ui_Power_Save_Bar, LV_ALIGN_CENTER);
+    lv_obj_clear_flag(ui_Power_Save_Bar, LV_OBJ_FLAG_SCROLLABLE);
+    
+    lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0x4F4F4F), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(ui_Power_Save_Bar, 255, LV_PART_MAIN);
+    lv_obj_set_style_radius(ui_Power_Save_Bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(ui_Power_Save_Bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_outline_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
+
+    // 2. 创建自制进度条指示器，作为背景条的子节点
+    ui_Power_Save_Bar_Indicator = lv_obj_create(ui_Power_Save_Bar);
+    lv_obj_set_height(ui_Power_Save_Bar_Indicator, 4);
+    lv_obj_set_width(ui_Power_Save_Bar_Indicator, 0);
+    lv_obj_set_align(ui_Power_Save_Bar_Indicator, LV_ALIGN_LEFT_MID); // 左对齐
+    lv_obj_clear_flag(ui_Power_Save_Bar_Indicator, LV_OBJ_FLAG_SCROLLABLE);
+    
+    lv_obj_set_style_bg_color(ui_Power_Save_Bar_Indicator, lv_color_hex(0x00BA11), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(ui_Power_Save_Bar_Indicator, 255, LV_PART_MAIN);
+    lv_obj_set_style_radius(ui_Power_Save_Bar_Indicator, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(ui_Power_Save_Bar_Indicator, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(ui_Power_Save_Bar_Indicator, 0, LV_PART_MAIN);
+    lv_obj_set_style_outline_width(ui_Power_Save_Bar_Indicator, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(ui_Power_Save_Bar_Indicator, 0, LV_PART_MAIN);
+
+    // 强行把自制进度条挪至 Z 轴最顶层，彻底脱离底层渲染影响
+    lv_obj_move_foreground(ui_Power_Save_Bar);
+
     initialized_ = true;
-    clear();
     return true;
 }
 
-// ─── 离屏 Canvas 画布绘制辅助函数 ───────────────────────────────────
-
-static void fill_rect_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, int w, int h, uint16_t color) {
-    if (x < 0) { w += x; x = 0; }
-    if (y < 0) { h += y; y = 0; }
-    if (x + w > canvas_w) w = canvas_w - x;
-    if (y + h > canvas_h) h = canvas_h - y;
-    if (w <= 0 || h <= 0) return;
-
-    for (int dy = 0; dy < h; dy++) {
-        int cy = y + dy;
-        uint16_t *row_ptr = canvas + cy * canvas_w;
-        for (int dx = 0; dx < w; dx++) {
-            row_ptr[x + dx] = color;
-        }
-    }
-}
-
-static void draw_char_6x12_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, char c, uint16_t color) {
-    if (c < 32 || c > 126) c = '?';
-    const uint8_t *glyph = font6x12_raw[c - 32];
-    
-    for (int row = 0; row < 12; row++) {
-        int cy = y + row;
-        if (cy < 0 || cy >= canvas_h) continue;
-        uint8_t row_byte = glyph[row];
-        uint16_t *row_ptr = canvas + cy * canvas_w;
-        
-        for (int col = 0; col < 6; col++) {
-            int cx = x + col;
-            if (cx < 0 || cx >= canvas_w) continue;
-            
-            bool bit_set = (row_byte & (1 << col)) != 0;
-            if (bit_set) {
-                row_ptr[cx] = color;
-            }
-        }
-    }
-}
-
-static void draw_text_6x12_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, const char *text, int len, uint16_t color) {
-    for (int i = 0; i < len; i++) {
-        draw_char_6x12_on_canvas(canvas, canvas_w, canvas_h, x + i * 6, y, text[i], color);
-    }
-}
-
-static void draw_char_16x32_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, char c, uint16_t color) {
-    if (c < 32 || c > 126) c = '?';
-    const uint8_t *glyph = font16x32_aa[c - 32];
-    
-    uint8_t r = (color >> 11) & 0x1F;
-    uint8_t g = (color >> 5) & 0x3F;
-    uint8_t b = color & 0x1F;
-    
-    for (int row = 0; row < 32; row++) {
-        int cy = y + row;
-        if (cy < 0 || cy >= canvas_h) continue;
-        const uint8_t *row_bytes = glyph + row * 8;
-        uint16_t *row_ptr = canvas + cy * canvas_w;
-        
-        for (int col = 0; col < 16; col++) {
-            int cx = x + col;
-            if (cx < 0 || cx >= canvas_w) continue;
-            
-            int col_read = col;
-            int byte_idx = col_read / 2;
-            uint8_t pixel_val = 0;
-            if (col_read % 2 == 0) {
-                pixel_val = row_bytes[byte_idx] >> 4;
-            } else {
-                pixel_val = row_bytes[byte_idx] & 0x0F;
-            }
-            
-            if (pixel_val == 15) {
-                row_ptr[cx] = color;
-            } else if (pixel_val > 0) {
-                uint16_t bg_color = row_ptr[cx];
-                uint8_t bg_r = (bg_color >> 11) & 0x1F;
-                uint8_t bg_g = (bg_color >> 5) & 0x3F;
-                uint8_t bg_b = bg_color & 0x1F;
-                
-                uint8_t blend_r = (r * pixel_val + bg_r * (15 - pixel_val)) / 15;
-                uint8_t blend_g = (g * pixel_val + bg_g * (15 - pixel_val)) / 15;
-                uint8_t blend_b = (b * pixel_val + bg_b * (15 - pixel_val)) / 15;
-                row_ptr[cx] = (blend_r << 11) | (blend_g << 5) | blend_b;
-            }
-        }
-    }
-}
-
-static void draw_char_40x80_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, char c, uint16_t color) {
-    int idx = get_font40x80_index(c);
-    const uint8_t *glyph = font40x80_nums_aa[idx];
-    
-    uint8_t r = (color >> 11) & 0x1F;
-    uint8_t g = (color >> 5) & 0x3F;
-    uint8_t b = color & 0x1F;
-    
-    for (int row = 0; row < 80; row++) {
-        int cy = y + row;
-        if (cy < 0 || cy >= canvas_h) continue;
-        const uint8_t *row_bytes = glyph + row * 20;
-        uint16_t *row_ptr = canvas + cy * canvas_w;
-        
-        for (int col = 0; col < 40; col++) {
-            int cx = x + col;
-            if (cx < 0 || cx >= canvas_w) continue;
-            
-            int col_read = col;
-            int byte_idx = col_read / 2;
-            uint8_t pixel_val = 0;
-            if (col_read % 2 == 0) {
-                pixel_val = row_bytes[byte_idx] >> 4;
-            } else {
-                pixel_val = row_bytes[byte_idx] & 0x0F;
-            }
-            
-            if (pixel_val == 15) {
-                row_ptr[cx] = color;
-            } else if (pixel_val > 0) {
-                uint16_t bg_color = row_ptr[cx];
-                uint8_t bg_r = (bg_color >> 11) & 0x1F;
-                uint8_t bg_g = (bg_color >> 5) & 0x3F;
-                uint8_t bg_b = bg_color & 0x1F;
-                
-                uint8_t blend_r = (r * pixel_val + bg_r * (15 - pixel_val)) / 15;
-                uint8_t blend_g = (g * pixel_val + bg_g * (15 - pixel_val)) / 15;
-                uint8_t blend_b = (b * pixel_val + bg_b * (15 - pixel_val)) / 15;
-                row_ptr[cx] = (blend_r << 11) | (blend_g << 5) | blend_b;
-            }
-        }
-    }
-}
-
-static void draw_text_40x80_on_canvas(uint16_t *canvas, int canvas_w, int canvas_h, int x, int y, const char *text, int len, uint16_t color) {
-    for (int i = 0; i < len; i++) {
-        draw_char_40x80_on_canvas(canvas, canvas_w, canvas_h, x + i * 40, y, text[i], color);
-    }
-}
-
-// ─── 基础原语 ──────────────────────────────────────────────────────
-
-void Display::fill_rect(int x, int y, int w, int h, uint16_t color) {
-    if (!panel_) return;
-    if (x < 0) { w += x; x = 0; }
-    if (y < 0) { h += y; y = 0; }
-    if (x + w > SCREEN_W) w = SCREEN_W - x;
-    if (y + h > SCREEN_H) h = SCREEN_H - y;
-    if (w <= 0 || h <= 0) return;
-
-    uint16_t flipped_color = (color >> 8) | (color << 8);
-
-    static uint16_t fill_buf[320];
-    for (int i = 0; i < w; i++) {
-        fill_buf[i] = flipped_color;
-    }
-
-    for (int dy = 0; dy < h; dy++) {
-        esp_lcd_panel_draw_bitmap(panel_, x, y + dy, x + w, y + dy + 1, fill_buf);
-    }
-}
-
-void Display::draw_line(int x0, int y0, int x1, int y1, uint16_t color) {
-    int dx = abs(x1 - x0);
-    int dy = abs(y1 - y0);
-    int sx = (x0 < x1) ? 1 : -1;
-    int sy = (y0 < y1) ? 1 : -1;
-    int err = dx - dy;
-
-    while (true) {
-        fill_rect(x0, y0, 1, 1, color);
-        if (x0 == x1 && y0 == y1) break;
-        int e2 = 2 * err;
-        if (e2 > -dy) {
-            err -= dy;
-            x0 += sx;
-        }
-        if (e2 < dx) {
-            err += dx;
-            y0 += sy;
-        }
-    }
-}
-
-void Display::draw_rect_outline(int x, int y, int w, int h, uint16_t color) {
-    fill_rect(x, y, w, 1, color);
-    fill_rect(x, y + h - 1, w, 1, color);
-    fill_rect(x, y, 1, h, color);
-    fill_rect(x + w - 1, y, 1, h, color);
-}
-
-void Display::draw_bitmap(int x, int y, int w, int h, const uint16_t *bitmap) {
-    if (!panel_) return;
-    if (x < 0 || y < 0 || x + w > SCREEN_W || y + h > SCREEN_H) return;
-
-    static uint16_t draw_buf[14000];
-    int total_pixels = w * h;
-    if (total_pixels > 14000) return;
-
-    for (int i = 0; i < total_pixels; i++) {
-        uint16_t color = bitmap[i];
-        draw_buf[i] = (color >> 8) | (color << 8);
-    }
-
-    esp_lcd_panel_draw_bitmap(panel_, x, y, x + w, y + h, draw_buf);
-}
-
-// ─── 1-bit 点阵小字库物理渲染实现 (去锯齿，边缘清晰清脆) ────────────
-
-void Display::draw_char_6x12(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg) {
-    if (c < 32 || c > 126) c = '?';
-    const uint8_t *glyph = font6x12_raw[c - 32];
-    
-    for (int row = 0; row < 12; row++) {
-        uint8_t row_byte = glyph[row];
-        for (int col = 0; col < 6; col++) {
-            bool bit_set = (row_byte & (1 << col)) != 0;
-            if (bit_set) {
-                fill_rect(x + col, y + row, 1, 1, color);
-            } else if (use_bg) {
-                fill_rect(x + col, y + row, 1, 1, bg);
-            }
-        }
-    }
-}
-
-void Display::draw_text_6x12(int x, int y, const char *text, int len, uint16_t color, uint16_t bg, bool use_bg) {
-    for (int i = 0; i < len; i++) {
-        int cx = x + i * 6;
-        if (cx + 6 > SCREEN_W) break;
-        draw_char_6x12(cx, y, text[i], color, bg, use_bg);
-    }
-}
-
-// 16x32 常规体 (大字抗锯齿保留)
-void Display::draw_char_16x32(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg) {
-    if (c < 32 || c > 126) c = '?';
-    const uint8_t *glyph = font16x32_aa[c - 32];
-    
-    uint8_t r = (color >> 11) & 0x1F;
-    uint8_t g = (color >> 5) & 0x3F;
-    uint8_t b = color & 0x1F;
-    
-    for (int row = 0; row < 32; row++) {
-        const uint8_t *row_bytes = glyph + row * 8;
-        for (int col = 0; col < 16; col++) {
-            int col_read = col;
-            int byte_idx = col_read / 2;
-            uint8_t pixel_val = 0;
-            if (col_read % 2 == 0) {
-                pixel_val = row_bytes[byte_idx] >> 4;
-            } else {
-                pixel_val = row_bytes[byte_idx] & 0x0F;
-            }
-            
-            if (pixel_val == 15) {
-                fill_rect(x + col, y + row, 1, 1, color);
-            } else if (pixel_val > 0) {
-                uint8_t blend_r = (r * pixel_val) / 15;
-                uint8_t blend_g = (g * pixel_val) / 15;
-                uint8_t blend_b = (b * pixel_val) / 15;
-                uint16_t blended_color = (blend_r << 11) | (blend_g << 5) | blend_b;
-                fill_rect(x + col, y + row, 1, 1, blended_color);
-            } else if (use_bg) {
-                fill_rect(x + col, y + row, 1, 1, bg);
-            }
-        }
-    }
-}
-
-void Display::draw_text_16x32(int x, int y, const char *text, int len, uint16_t color, uint16_t bg, bool use_bg) {
-    for (int i = 0; i < len; i++) {
-        int cx = x + i * 16;
-        if (cx + 16 > SCREEN_W) break;
-        draw_char_16x32(cx, y, text[i], color, bg, use_bg);
-    }
-}
-
-// 40x80 巨型字 (大字抗锯齿保留)
-void Display::draw_char_40x80(int x, int y, char c, uint16_t color, uint16_t bg, bool use_bg) {
-    int idx = get_font40x80_index(c);
-    const uint8_t *glyph = font40x80_nums_aa[idx];
-    
-    uint8_t r = (color >> 11) & 0x1F;
-    uint8_t g = (color >> 5) & 0x3F;
-    uint8_t b = color & 0x1F;
-    
-    for (int row = 0; row < 80; row++) {
-        const uint8_t *row_bytes = glyph + row * 20;
-        for (int col = 0; col < 40; col++) {
-            int col_read = col;
-            int byte_idx = col_read / 2;
-            uint8_t pixel_val = 0;
-            if (col_read % 2 == 0) {
-                pixel_val = row_bytes[byte_idx] >> 4;
-            } else {
-                pixel_val = row_bytes[byte_idx] & 0x0F;
-            }
-            
-            if (pixel_val == 15) {
-                fill_rect(x + col, y + row, 1, 1, color);
-            } else if (pixel_val > 0) {
-                uint8_t blend_r = (r * pixel_val) / 15;
-                uint8_t blend_g = (g * pixel_val) / 15;
-                uint8_t blend_b = (b * pixel_val) / 15;
-                uint16_t blended_color = (blend_r << 11) | (blend_g << 5) | blend_b;
-                fill_rect(x + col, y + row, 1, 1, blended_color);
-            } else if (use_bg) {
-                fill_rect(x + col, y + row, 1, 1, bg);
-            }
-        }
-    }
-}
-
-void Display::draw_text_40x80(int x, int y, const char *text, int len, uint16_t color, uint16_t bg, bool use_bg) {
-    for (int i = 0; i < len; i++) {
-        int cx = x + i * 40;
-        if (cx + 40 > SCREEN_W) break;
-        draw_char_40x80(cx, y, text[i], color, bg, use_bg);
-    }
-}
-
-// ─── 统一清屏 ──────────────────────────────────────────────────────
-
-void Display::clear() {
-    fill_rect(0, 0, SCREEN_W, SCREEN_H, 0x0000);
-}
-
-void Display::show_splash() {
-    if (!initialized_) return;
-    clear();
-
-    int xs = (SCREEN_W - 5 * 16) / 2;
-    draw_text_16x32(xs, 75, "Tesla", 5, 0xF800);
-
-    xs = (SCREEN_W - 8 * 16) / 2;
-    draw_text_16x32(xs, 140, "BLE DASH", 8, 0xFFFF);
-
-    xs = (SCREEN_W - 19 * 6) / 2;
-    draw_text_6x12(xs, 200, "Initializing BLE...", 19, 0x7BEF);
-}
-
-void Display::show_pairing(const std::string &msg) {
-    if (!initialized_) return;
-    clear();
-
-    int xs = (SCREEN_W - 12 * 16) / 2;
-    draw_text_16x32(xs, 25, "PAIRING MODE", 12, 0xF800);
-
-    fill_rect(110, 75, 100, 60, 0x18C3);
-    draw_text_16x32(144, 88, "NFC", 3, 0xFFFF);
-
-    xs = (SCREEN_W - (int)(msg.size() * 16)) / 2;
-    draw_text_16x32(xs >= 0 ? xs : 0, 165, msg.c_str(), msg.size(), 0xFFFF);
-
-    xs = (SCREEN_W - 26 * 6) / 2;
-    draw_text_6x12(xs, 210, "Hold Boot button to cancel", 26, 0x7BEF);
-}
-
-void Display::show_error(const std::string &msg) {
-    if (!initialized_) return;
-    clear();
-
-    int xs = (SCREEN_W - 5 * 16) / 2;
-    draw_text_16x32(xs, 40, "ERROR", 5, 0xF800);
-
-    std::string line1 = msg.substr(0, 18);
-    std::string line2 = msg.size() > 18 ? msg.substr(18, 18) : "";
-
-    xs = (SCREEN_W - (int)(line1.size() * 6)) / 2;
-    draw_text_6x12(xs >= 0 ? xs : 0, 100, line1.c_str(), line1.size(), 0xFFFF);
-
-    if (!line2.empty()) {
-        xs = (SCREEN_W - (int)(line2.size() * 6)) / 2;
-        draw_text_6x12(xs >= 0 ? xs : 0, 130, line2.c_str(), line2.size(), 0xFFFF);
-    }
-
-    xs = (SCREEN_W - 17 * 6) / 2;
-    draw_text_6x12(xs, 190, "Check connections", 17, 0x7BEF);
-}
-
-void Display::show_text_lines(const std::string &line1, const std::string &line2,
-                               const std::string &line3) {
-    if (!initialized_) return;
-    clear();
-
-    if (!line1.empty()) {
-        int xs = (SCREEN_W - (int)(line1.size() * 16)) / 2;
-        draw_text_16x32(xs >= 0 ? xs : 0, 50, line1.c_str(), line1.size(), 0xFFFF);
-    }
-    if (!line2.empty()) {
-        int xs = (SCREEN_W - (int)(line2.size() * 16)) / 2;
-        draw_text_16x32(xs >= 0 ? xs : 0, 110, line2.c_str(), line2.size(), 0xFFFF);
-    }
-    if (!line3.empty()) {
-        int xs = (SCREEN_W - (int)(line3.size() * 16)) / 2;
-        draw_text_16x32(xs >= 0 ? xs : 0, 170, line3.c_str(), line3.size(), 0xFFFF);
-    }
-}
-
-// ─── 特斯拉 UI 各块绘制函数 (状态栏贴边 Y=4, 割线 Y=20) ───────────────
-
-void Display::draw_status_bar(const DashData &data) {
-    fill_rect(10, 20, 300, 1, 0x18C3);
-
-    uint16_t ble_color = data.ble_connected ? 0x03FF : 0x7BEF;
-    fill_rect(15, 8, 4, 4, ble_color);
-    draw_text_6x12(23, 4, "BLE", 3, ble_color);
-    if (data.ble_connected) {
-        draw_text_6x12(45, 4, "OK", 2, 0x07E0);
-    } else {
-        draw_text_6x12(45, 4, "DEMO", 4, 0xF9C0);
-    }
-
-    uint16_t lock_color = data.locked ? 0x07E0 : 0xFFE0;
-    draw_text_6x12(130, 4, data.locked ? "LOCKED" : "UNLOCKED", data.locked ? 6 : 8, lock_color);
-
-    uint16_t awake_color = data.vehicle_awake ? 0x07E0 : 0x7BEF;
-    fill_rect(242, 8, 4, 4, awake_color);
-    if (data.vehicle_awake) {
-        draw_text_6x12(250, 4, "AWAKE", 5, 0x07E0);
-    } else {
-        draw_text_6x12(250, 4, "SLEEP", 5, 0x7BEF);
-    }
-}
-
-void Display::draw_speed_or_gear(float speed, char gear) {}
-void Display::draw_power_bar_dual(int x, int y, int w, int h, float power_kw) {}
-
-void Display::draw_odometer(uint32_t odo) {
+// 将整数格式化并防御性写入 Label，避免无变动时频繁 realloc 导致内存碎片化
+static void set_label_int(lv_obj_t *label, int val, const char *prefix = "", const char *suffix = "") {
+    if (!label) return;
     char buf[32];
-    int len = snprintf(buf, sizeof(buf), "ODO: %u km", (unsigned int)odo);
-    int xs = (SCREEN_W - len * 6) / 2;
-    draw_text_6x12(xs, 222, buf, len, 0xCE79);
+    snprintf(buf, sizeof(buf), "%s%d%s", prefix, val, suffix);
+    const char *current_txt = lv_label_get_text(label);
+    if (current_txt && strcmp(current_txt, buf) == 0) {
+        return; // 无变动，拦截！
+    }
+    lv_label_set_text(label, buf);
 }
 
-void Display::draw_car_chassis(int cx, int cy, const DashData &data) {}
+// 将 float 格式化为一位小数并防御性写入 Label，消除无变动时的重绘与碎片化
+static void set_label_float(lv_obj_t *label, float val, const char *prefix = "", const char *suffix = "") {
+    if (!label) return;
 
-// ─── 页面 1: 开门界面绘制实现 (大尺寸特斯拉红色实心位图) ───────────────
+    bool is_neg = (val < 0);
+    float abs_val = is_neg ? -val : val;
 
-void Display::draw_closures_screen(const DashData &data) {
-    if (is_first_render_) {
-        clear();
-        draw_status_bar(data);
-        
-        // 居中绘制 100x140 红色全开门特斯拉位图
-        draw_bitmap(110, 51, 100, 140, car_open_image);
-        
-        // 绘制大红色警告文本 (Y=196)
-        int xs = (SCREEN_W - 14 * 6) / 2;
-        draw_text_6x12(xs, 196, "DOORS UNCLOSED", 14, 0xF800);
-        
-        // 里程贴底边 (Y=222)
-        draw_odometer(data.odometer_km);
-        
-        is_first_render_ = false;
-        last_data_ = data;
+    int int_part = (int)abs_val;
+    int dec_part = (int)((abs_val - int_part) * 10.0f + 0.5f);
+    if (dec_part >= 10) {
+        int_part += 1;
+        dec_part = 0;
     }
-    
-    // 差分刷新
-    if (data.ble_connected != last_data_.ble_connected ||
-        data.locked != last_data_.locked ||
-        data.vehicle_awake != last_data_.vehicle_awake) {
-        fill_rect(0, 0, SCREEN_W, 19, 0x0000);
-        draw_status_bar(data);
+
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%s%s%d.%d%s", prefix, is_neg ? "-" : "", int_part, dec_part, suffix);
+
+    const char *current_txt = lv_label_get_text(label);
+    if (current_txt && strcmp(current_txt, buf) == 0) {
+        return; // 无变动，拦截！
     }
-    
-    if (data.odometer_km != last_data_.odometer_km) {
-        fill_rect(50, 220, 220, 20, 0x0000);
-        draw_odometer(data.odometer_km);
-    }
-    
-    last_data_ = data;
+
+    lv_label_set_text(label, buf);
 }
 
-// ─── 页面 2: 极简充电界面绘制实现 (纯绿色无外廓进度条) ──────────────────
-
-void Display::draw_charging_screen(const DashData &data) {
-    if (is_first_render_) {
-        clear();
-        draw_status_bar(data);
-        
-        // 头部显示亮绿色 CHARGING 状态
-        int xs = (SCREEN_W - 8 * 16) / 2;
-        draw_text_16x32(xs, 35, "CHARGING", 8, 0x07E0);
-        
-        // 直槽充电进度底条背景 (X=30, Y=145, 宽 260, 高 8)
-        fill_rect(30, 145, 260, 8, 0x18C3);
-        
-        draw_odometer(data.odometer_km);
-        
-        is_first_render_ = false;
-        last_data_ = data;
-    }
+// 安全包装胎压值写入，支持高于 3.2 或低于 2.6 bar 时的橘红色 (FF5500) 变色预警并带样式差分拦截
+static void set_tire_pressure(lv_obj_t *label, float val) {
+    if (!label) return;
+    set_label_float(label, val);
     
-    // 充电差分刷新
-    if (data.ble_connected != last_data_.ble_connected ||
-        data.locked != last_data_.locked ||
-        data.vehicle_awake != last_data_.vehicle_awake) {
-        fill_rect(0, 0, SCREEN_W, 19, 0x0000);
-        draw_status_bar(data);
-    }
+    lv_color_t target_color = (val < 2.6f || val > 3.2f) ? lv_color_hex(0xFF5500) : lv_color_white();
     
-    // 充电中大字大包围区差分 (Y=72 到 140)
-    if (std::abs(data.charge_power_kw - last_data_.charge_power_kw) > 0.1f ||
-        data.battery_level != last_data_.battery_level ||
-        data.minutes_to_charge_limit != last_data_.minutes_to_charge_limit ||
-        data.battery_range_km != last_data_.battery_range_km) {
-        
-        fill_rect(10, 72, 300, 68, 0x0000);
-        
-        char buf[64];
-        // 渲染 SOC + 充电功率 (如: "62% @ 7.2 kW")
-        int len = snprintf(buf, sizeof(buf), "%d%% @ %.1f kW", (int)data.battery_level, data.charge_power_kw);
-        int xs = (SCREEN_W - len * 16) / 2;
-        draw_text_16x32(xs, 75, buf, len, 0xFFFF);
-        
-        // 渲染预计剩余时间和加电里程 (如: "Remaining: 3h 45m (+240 km)")
-        int hrs = data.minutes_to_charge_limit / 60;
-        int mins = data.minutes_to_charge_limit % 60;
-        len = snprintf(buf, sizeof(buf), "Remaining: %dh %dm  (+%.0f km)", hrs, mins, data.battery_range_km);
-        xs = (SCREEN_W - len * 6) / 2;
-        draw_text_6x12(xs, 115, buf, len, 0xCE79);
+    // 如果颜色未改变，跳过样式重新加载以防内存开销
+    lv_color_t cur_color = lv_obj_get_style_text_color(label, LV_PART_MAIN);
+    if (cur_color.full != target_color.full) {
+        lv_obj_set_style_text_color(label, target_color, 0);
     }
-    
-    // 极简亮绿色进度直槽覆盖 (Y=145)
-    if (data.battery_level != last_data_.battery_level || last_data_.battery_level == 0) {
-        fill_rect(30, 145, 260, 8, 0x18C3);
-        int fill_w = (int)((data.battery_level / 100.0f) * 260.0f);
-        if (fill_w > 260) fill_w = 260;
-        fill_rect(30, 145, fill_w, 8, 0x07E0);
-    }
-    
-    if (data.odometer_km != last_data_.odometer_km) {
-        fill_rect(50, 220, 220, 20, 0x0000);
-        draw_odometer(data.odometer_km);
-    }
-    
-    last_data_ = data;
 }
 
-// ─── 页面 3: 驾驶主界面渲染实现 (差分刷新，大字时速，整合挡位) ───────────
+// ─── 统一界面真实数据渲染与数据绑定入口 ─────────────────────────────────────────
 
-void Display::draw_driving_screen(const DashData &data) {
-    if (is_first_render_) {
-        clear();
-        draw_status_bar(data);
-        
-        // 胎压线框与电池图标底图
-        draw_rect_outline(147, 184, 26, 30, 0x5AEB);
-        draw_rect_outline(15, 186, 20, 10, 0xCE79);
-        fill_rect(35, 188, 2, 6, 0xCE79);
-
-        draw_odometer(data.odometer_km);
-
-        is_first_render_ = false;
-        last_data_ = data;
-        memset(prev_drawn_speed_gear_str_, 0, sizeof(prev_drawn_speed_gear_str_));
+static void set_label_color_if_diff(lv_obj_t *label, lv_color_t target_color) {
+    if (!label) return;
+    lv_color_t cur_color = lv_obj_get_style_text_color(label, LV_PART_MAIN);
+    if (cur_color.full != target_color.full) {
+        lv_obj_set_style_text_color(label, target_color, 0);
     }
-
-    // 1. 顶部状态栏
-    if (data.ble_connected != last_data_.ble_connected ||
-        data.locked != last_data_.locked ||
-        data.vehicle_awake != last_data_.vehicle_awake) {
-        fill_rect(0, 0, SCREEN_W, 19, 0x0000);
-        draw_status_bar(data);
-    }
-
-    // 2. 车速与挡位融合大字 (260x80 Canvas, Y=32)
-    int speed_int = (int)std::round(data.speed_kmh);
-    char current_text[16] = {0};
-    
-    if (data.gear != prev_gear_) {
-        prev_gear_ = data.gear;
-        gear_switch_time_ms_ = esp_timer_get_time() / 1000;
-    }
-    int64_t now_ms = esp_timer_get_time() / 1000;
-    
-    bool show_gear_focus = (data.gear == 'P' || data.gear == 'R' || (now_ms - gear_switch_time_ms_ < 2000));
-
-    if (show_gear_focus) {
-        snprintf(current_text, sizeof(current_text), "G_%c", data.gear);
-    } else {
-        snprintf(current_text, sizeof(current_text), "S_%d", speed_int);
-    }
-
-    if (strcmp(current_text, prev_drawn_speed_gear_str_) != 0) {
-        strcpy(prev_drawn_speed_gear_str_, current_text);
-        
-        static uint16_t speed_canvas[260 * 80];
-        memset(speed_canvas, 0, sizeof(speed_canvas));
-        
-        if (show_gear_focus) {
-            draw_char_40x80_on_canvas(speed_canvas, 260, 80, (260 - 40) / 2, 0, data.gear, 0xF800);
-            draw_text_6x12_on_canvas(speed_canvas, 260, 80, (260 - 6 * 6) / 2, 68, "ACTIVE", 6, 0xF800);
-        } else {
-            // 行驶中：左侧画红色常规挡位 (16x32)，中间巨型 40x80 速度，右侧悬浮 km/h
-            draw_char_16x32_on_canvas(speed_canvas, 260, 80, 15, 24, data.gear, 0xF800);
-            
-            char buf[8];
-            int len = snprintf(buf, sizeof(buf), "%d", speed_int);
-            int total_w = len * 40;
-            int xs = (260 - total_w) / 2;
-            draw_text_40x80_on_canvas(speed_canvas, 260, 80, xs, 0, buf, len, 0xFFFF);
-            
-            draw_text_6x12_on_canvas(speed_canvas, 260, 80, xs + total_w + 4, 52, "km/h", 4, 0x7BEF);
-        }
-        
-        for (int i = 0; i < 260 * 80; i++) {
-            uint16_t color = speed_canvas[i];
-            speed_canvas[i] = (color >> 8) | (color << 8);
-        }
-        esp_lcd_panel_draw_bitmap(panel_, 30, 32, 30 + 260, 32 + 80, speed_canvas);
-    }
-
-    // 3. 双色功率条 (Y=128 到 154)
-    if (std::abs(data.motor_power_kw - last_data_.motor_power_kw) > 0.3f) {
-        static uint16_t power_canvas[260 * 26];
-        memset(power_canvas, 0, sizeof(power_canvas));
-        
-        fill_rect_on_canvas(power_canvas, 260, 26, 0, 8, 260, 4, 0x18C3);
-        int cx = 260 / 2;
-        
-        if (data.motor_power_kw > 0.0f) {
-            float ratio = data.motor_power_kw / 120.0f;
-            if (ratio > 1.0f) ratio = 1.0f;
-            int len = (int)(ratio * (260 / 2));
-            if (len > 0) {
-                fill_rect_on_canvas(power_canvas, 260, 26, cx, 8, len, 4, 0xF800);
-            }
-        } else if (data.motor_power_kw < 0.0f) {
-            float ratio = -data.motor_power_kw / 60.0f;
-            if (ratio > 1.0f) ratio = 1.0f;
-            int len = (int)(ratio * (260 / 2));
-            if (len > 0) {
-                fill_rect_on_canvas(power_canvas, 260, 26, cx - len, 8, len, 4, 0x07E0);
-            }
-        } else {
-            fill_rect_on_canvas(power_canvas, 260, 26, cx - 1, 7, 3, 6, 0xFFFF);
-        }
-        
-        char pwr_buf[16];
-        int len_str = snprintf(pwr_buf, sizeof(pwr_buf), "%+.1f kW", data.motor_power_kw);
-        int xs = (260 - len_str * 6) / 2;
-        uint16_t val_color = (data.motor_power_kw >= 0.0f) ? 0xF800 : 0x07E0;
-        draw_text_6x12_on_canvas(power_canvas, 260, 26, xs, 16, pwr_buf, len_str, val_color);
-        
-        for (int i = 0; i < 260 * 26; i++) {
-            uint16_t color = power_canvas[i];
-            power_canvas[i] = (color >> 8) | (color << 8);
-        }
-        esp_lcd_panel_draw_bitmap(panel_, 30, 128, 30 + 260, 128 + 26, power_canvas);
-    }
-
-    // 4. 左下角电池卡片盒 (X=12 到 110, Y=182 到 214)
-    if (data.battery_level != last_data_.battery_level ||
-        data.battery_range_km != last_data_.battery_range_km) {
-        
-        fill_rect(12, 182, 98, 32, 0x0000);
-        
-        draw_rect_outline(15, 186, 20, 10, 0xCE79);
-        fill_rect(35, 188, 2, 6, 0xCE79);
-        int fill_w = (int)((data.battery_level / 100.0f) * 16.0f);
-        fill_rect(17, 188, fill_w, 6, 0x07E0);
-        
-        char val_buf[16];
-        snprintf(val_buf, sizeof(val_buf), "%d%%", (int)data.battery_level);
-        draw_text_6x12(40, 184, val_buf, strlen(val_buf), 0xFFFF);
-        
-        snprintf(val_buf, sizeof(val_buf), "%.0f km", data.battery_range_km);
-        draw_text_6x12(15, 200, val_buf, strlen(val_buf), 0xCE79);
-    }
-
-    // 5. 右下角温度卡片盒 (X=230 到 315, Y=182 到 214)
-    if (std::abs(data.inside_temp - last_data_.inside_temp) > 0.08f ||
-        std::abs(data.outside_temp - last_data_.outside_temp) > 0.08f) {
-        
-        fill_rect(230, 182, 85, 32, 0x0000);
-        
-        char val_buf[16];
-        snprintf(val_buf, sizeof(val_buf), "In:  %.1f C", data.inside_temp);
-        draw_text_6x12(235, 184, val_buf, strlen(val_buf), 0xFFFF);
-        snprintf(val_buf, sizeof(val_buf), "Out: %.1f C", data.outside_temp);
-        draw_text_6x12(235, 200, val_buf, strlen(val_buf), 0xCE79);
-    }
-
-    // 6. 四角胎压卡片盒 (X=112 到 228, Y=179 到 214)
-    if (std::abs(data.tpms_fl - last_data_.tpms_fl) > 0.05f ||
-        std::abs(data.tpms_fr - last_data_.tpms_fr) > 0.05f ||
-        std::abs(data.tpms_rl - last_data_.tpms_rl) > 0.05f ||
-        std::abs(data.tpms_rr - last_data_.tpms_rr) > 0.05f) {
-        
-        fill_rect(112, 179, 116, 35, 0x0000);
-        draw_rect_outline(147, 184, 26, 30, 0x5AEB);
-        
-        char val_buf[16];
-        snprintf(val_buf, sizeof(val_buf), "%.1f", data.tpms_fl);
-        draw_text_6x12(120, 187, val_buf, strlen(val_buf), 0xCE79);
-
-        snprintf(val_buf, sizeof(val_buf), "%.1f", data.tpms_fr);
-        draw_text_6x12(178, 187, val_buf, strlen(val_buf), 0xCE79);
-
-        snprintf(val_buf, sizeof(val_buf), "%.1f", data.tpms_rl);
-        draw_text_6x12(120, 201, val_buf, strlen(val_buf), 0xCE79);
-
-        snprintf(val_buf, sizeof(val_buf), "%.1f", data.tpms_rr);
-        draw_text_6x12(178, 201, val_buf, strlen(val_buf), 0xCE79);
-    }
-
-    // 7. 底部总里程卡片盒 (X=50 到 270, Y=220 到 238)
-    if (data.odometer_km != last_data_.odometer_km) {
-        fill_rect(50, 220, 220, 20, 0x0000);
-        draw_odometer(data.odometer_km);
-    }
-
-    last_data_ = data;
 }
 
-// ─── 统一界面差分渲染分发接口 ──────────────────────────────────────────
+static void update_cargear_widget(lv_obj_t *cargear_obj, char gear, int battery_level) {
+    if (!cargear_obj) return;
+    
+    // 获取组件里的子控件节点
+    lv_obj_t *lbl_P = ui_comp_get_child(cargear_obj, UI_COMP_CARGEAR_LABEL_P);
+    lv_obj_t *lbl_R = ui_comp_get_child(cargear_obj, UI_COMP_CARGEAR_LABEL_R);
+    lv_obj_t *lbl_N = ui_comp_get_child(cargear_obj, UI_COMP_CARGEAR_LABEL_N);
+    lv_obj_t *lbl_D = ui_comp_get_child(cargear_obj, UI_COMP_CARGEAR_LABEL_D);
+    lv_obj_t *lbl_S = ui_comp_get_child(cargear_obj, UI_COMP_CARGEAR_LABEL_S);
+    
+    lv_obj_t *bar = ui_comp_get_child(cargear_obj, UI_COMP_CARGEAR_POWER_BAR);
+    lv_obj_t *lbl_percent = ui_comp_get_child(cargear_obj, UI_COMP_CARGEAR_POWER_PERCENT);
+    
+    // 档位高亮与颜色切换，全属性差分过滤
+    set_label_color_if_diff(lbl_P, (gear == 'P') ? lv_color_hex(0xFFFFFF) : lv_color_hex(0x303030));
+    set_label_color_if_diff(lbl_R, (gear == 'R') ? lv_color_hex(0xFF2A2A) : lv_color_hex(0x303030));
+    set_label_color_if_diff(lbl_N, (gear == 'N') ? lv_color_hex(0xFFFFFF) : lv_color_hex(0x303030));
+    set_label_color_if_diff(lbl_D, (gear == 'D' || gear == '?') ? lv_color_hex(0xFFFFFF) : lv_color_hex(0x303030));
+    set_label_color_if_diff(lbl_S, (gear == 'S') ? lv_color_hex(0xFFFFFF) : lv_color_hex(0x303030));
+    
+    // 电池进度条和电量数字防御性刷新
+    if (bar) {
+        if (lv_bar_get_value(bar) != battery_level) {
+            lv_bar_set_value(bar, battery_level, LV_ANIM_OFF);
+        }
+    }
+    set_label_int(lbl_percent, battery_level, "", "%");
+}
+
+// 记录档位切换状态，用于中间时速大字的 1 秒档位特写 (提到全局以被 force_refresh 感知)
+static char last_gear = '\0';
+static int gear_flash_frames = 0;
 
 void Display::render_dashboard(const DashData &data) {
     if (!initialized_) return;
 
-    // 1. 根据数据确定当前所属的界面类型
-    int current_screen_type = 0; // 0: driving, 1: closures, 2: charging
+    // 档位变动检测与 20 帧特写重置 (约合 1 秒)
+    if (data.gear != last_gear) {
+        last_gear = data.gear;
+        gear_flash_frames = 20;
+    }
+
+    // 计算是否处于特写帧，强行放行刷新以确保重绘到数字
+    bool force_refresh = (gear_flash_frames > 0);
+    static bool was_in_gear_flash = false;
+    if (force_refresh || was_in_gear_flash) {
+        force_refresh = true;
+    }
+    was_in_gear_flash = (gear_flash_frames > 0);
+
+    // 递减特写帧计数器
+    if (gear_flash_frames > 0) {
+        gear_flash_frames--;
+    }
+
+    // 1. 最上游数据变动差分拦截过滤（如果状态全无更新，拦截以防止任何 CPU 开销）
+    if (!force_refresh && last_data_.valid &&
+        data.battery_level == last_data_.battery_level &&
+        data.battery_range_km == last_data_.battery_range_km &&
+        data.speed_kmh == last_data_.speed_kmh &&
+        data.gear == last_data_.gear &&
+        data.motor_power_kw == last_data_.motor_power_kw &&
+        data.inside_temp == last_data_.inside_temp &&
+        data.outside_temp == last_data_.outside_temp &&
+        data.tpms_fl == last_data_.tpms_fl &&
+        data.tpms_fr == last_data_.tpms_fr &&
+        data.tpms_rl == last_data_.tpms_rl &&
+        data.tpms_rr == last_data_.tpms_rr &&
+        data.door_open_fl == last_data_.door_open_fl &&
+        data.door_open_fr == last_data_.door_open_fr &&
+        data.door_open_rl == last_data_.door_open_rl &&
+        data.door_open_rr == last_data_.door_open_rr &&
+        data.door_open_trunk_front == last_data_.door_open_trunk_front &&
+        data.door_open_trunk_rear == last_data_.door_open_trunk_rear &&
+        data.charging == last_data_.charging &&
+        data.charge_power_kw == last_data_.charge_power_kw) {
+        return;
+    }
+
+    // 2. 页面自动路由判断逻辑
+    // 当任意车门被打开，自动切换到 door open 页面；当车辆充电中，切换至 charge 页面；其余切至默认 drive 首页
+    int target_screen_type = 0; // 0: Drive, 1: Door open, 2: Charge
+
+    bool any_door_open = (data.door_open_fl || data.door_open_fr ||
+                          data.door_open_rl || data.door_open_rr ||
+                          data.door_open_trunk_front || data.door_open_trunk_rear);
+
+    if (any_door_open) {
+        target_screen_type = 1; // door open
+    } else if (data.charging) {
+        target_screen_type = 2; // charge
+    } else {
+        target_screen_type = 0; // drive
+    }
+
+    static int last_screen_type = -1;
+    if (target_screen_type != last_screen_type) {
+        // 切屏前彻底释放和清除上一轮遗留的无线循环动画，彻底消除后台计算开销与碎片化风险
+        if (ui_charge_power_animation) lv_anim_del(ui_charge_power_animation, NULL);
+        if (ui_door_open_img)          lv_anim_del(ui_door_open_img, NULL);
+        if (ui_Door_open_text)         lv_anim_del(ui_Door_open_text, NULL);
+
+        last_screen_type = target_screen_type;
+        // 离开 Landing 页时，强行擦除隐藏自定义的配对引导与状态文字组件
+        if (pairing_container) lv_obj_add_flag(pairing_container, LV_OBJ_FLAG_HIDDEN);
+        if (pairing_lbl) lv_obj_add_flag(pairing_lbl, LV_OBJ_FLAG_HIDDEN);
+
+        if (target_screen_type == 1) {
+            lv_scr_load(ui_Door_open);
+        } else if (target_screen_type == 2) {
+            lv_scr_load(ui_Charge);
+        } else {
+            lv_scr_load(ui_Drive);
+        }
+        // 强制触发 100% 区域重绘，消除切换时的瞬时重叠影
+        lv_obj_invalidate(lv_scr_act());
+    }
+
+    // ─── 3. 将遥测数据源写入对应 UI Widget 控件 ───
+
+    // 更新常规页面顶部的 Cargear 组电量与档位高亮
+    if (ui_Cargear)  update_cargear_widget(ui_Cargear, data.gear, data.battery_level);
+    if (ui_Cargear1) update_cargear_widget(ui_Cargear1, data.gear, data.battery_level);
+    if (ui_Cargear2) update_cargear_widget(ui_Cargear2, data.gear, data.battery_level);
+
+    // (A) 行驶页面 (ui_Drive)
+    if (ui_Speed_Label) {
+        // 时速大字及档位颜色控制 (R档为红色 FF2A2A，SNA/? 辅助驾驶为蓝色 0071FF，其余白色) — 全面差分拦截样式更新
+        lv_color_t target_speed_color = lv_color_white();
+        if (data.gear == 'R') {
+            target_speed_color = lv_color_hex(0xFF2A2A);
+        } else if (data.gear == '?') {
+            target_speed_color = lv_color_hex(0x0071FF);
+        }
+
+        lv_color_t cur_speed_color = lv_obj_get_style_text_color(ui_Speed_Label, LV_PART_MAIN);
+        if (cur_speed_color.full != target_speed_color.full) {
+            lv_obj_set_style_text_color(ui_Speed_Label, target_speed_color, 0);
+        }
+
+        if (gear_flash_frames > 0) { // 1 秒档位特写 (20帧)
+            if (data.gear == '?') {
+                const char *cur_txt = lv_label_get_text(ui_Speed_Label);
+                if (!cur_txt || strcmp(cur_txt, "D") != 0) {
+                    lv_label_set_text(ui_Speed_Label, "D"); // SNA 巡航挂在 D 档上，中间特写大字显示 D
+                }
+            } else {
+                char buf[8];
+                snprintf(buf, sizeof(buf), "%c", data.gear);
+                const char *cur_txt = lv_label_get_text(ui_Speed_Label);
+                if (!cur_txt || strcmp(cur_txt, buf) != 0) {
+                    lv_label_set_text(ui_Speed_Label, buf);
+                }
+            }
+        } else { // 正常时速显示
+            int speed_val = (int)std::round(data.speed_kmh);
+            set_label_int(ui_Speed_Label, speed_val);
+        }
+    }
     
-    if (data.valid) {
-        bool any_door_open = (data.door_open_fl || data.door_open_fr ||
-                              data.door_open_rl || data.door_open_rr ||
-                              data.door_open_trunk_front || data.door_open_trunk_rear);
-        
-        if (any_door_open && (int)std::round(data.speed_kmh) == 0) {
-            current_screen_type = 1; // closures
-        } else if (data.charging && (int)std::round(data.speed_kmh) == 0) {
-            current_screen_type = 2; // charging
+    // FSD Icon 定速巡航 / 辅助驾驶图标的自动显隐拦截
+    if (ui_FSD_icon) {
+        bool should_show = (data.gear == '?' || data.gear == 'S');
+        bool is_hidden = lv_obj_has_flag(ui_FSD_icon, LV_OBJ_FLAG_HIDDEN);
+        if (should_show && is_hidden) {
+            lv_obj_clear_flag(ui_FSD_icon, LV_OBJ_FLAG_HIDDEN);
+        } else if (!should_show && !is_hidden) {
+            lv_obj_add_flag(ui_FSD_icon, LV_OBJ_FLAG_HIDDEN);
         }
     }
 
-    // 2. 检测到界面类型跳转，强制进行一次全局清屏和重置 is_first_render
-    static int last_screen_type = -1;
-    if (current_screen_type != last_screen_type) {
-        last_screen_type = current_screen_type;
-        is_first_render_ = true; // 强制重新初始化底图
+    if (ui_Power_Save_Bar && ui_Power_Save_Bar_Indicator) {
+        int power_val = (int)std::round(data.motor_power_kw);
+        if (power_val < -100) power_val = -100;
+        if (power_val > 100) power_val = 100;
+
+        float percent = power_val / 100.0f; // -1.0f ~ 1.0f
+        
+        static float last_percent = -999.0f;
+        if (std::abs(percent - last_percent) > 0.002f) {
+            last_percent = percent;
+            
+            if (percent >= 0.0f) {
+                // 能量消耗：红色，向右延展
+                int w = (int)(percent * 151.0f); // 302 的一半是 151
+                lv_obj_set_style_bg_color(ui_Power_Save_Bar_Indicator, lv_color_hex(0xFF0000), LV_PART_MAIN);
+                lv_obj_set_x(ui_Power_Save_Bar_Indicator, 151); // 从中点 151 起跑
+                lv_obj_set_width(ui_Power_Save_Bar_Indicator, w);
+            } else {
+                // 能量回收：绿色，向左延展
+                int w = (int)(-percent * 151.0f); // 宽度是正数
+                lv_obj_set_style_bg_color(ui_Power_Save_Bar_Indicator, lv_color_hex(0x00BA11), LV_PART_MAIN);
+                lv_obj_set_x(ui_Power_Save_Bar_Indicator, 151 - w); // 偏置保证右边缘贴着中点
+                lv_obj_set_width(ui_Power_Save_Bar_Indicator, w);
+            }
+        }
     }
 
-    // 3. 分发具体绘制
-    if (current_screen_type == 1) {
-        draw_closures_screen(data);
-    } else if (current_screen_type == 2) {
-        draw_charging_screen(data);
-    } else {
-        draw_driving_screen(data);
+    // 安全避开 %f 打印机理以显示数值，并支持胎压区间预警 (低于2.6或高于3.2变橘红)
+    set_tire_pressure(ui_Tire_left_front, data.tpms_fl);
+    set_tire_pressure(ui_Tire_right_front, data.tpms_fr);
+    set_tire_pressure(ui_Tire_left_back, data.tpms_rl);
+    set_tire_pressure(ui_Tire_right_back, data.tpms_rr);
+
+    set_label_float(ui_Inside_Temp, data.inside_temp, "", " \u00B0C");
+    set_label_float(ui_Outside_Temp, data.outside_temp, "", " \u00B0C");
+
+    // (B) 充电页面 (ui_Charge)
+    set_label_float(ui_Charge_Power, data.charge_power_kw);
+
+    set_label_int(ui_Battery_range, (int)std::round(data.battery_range_km));
+
+    // (C) 开门警示页 (ui_Door_open)
+    if (ui_Door_open_text) {
+        const char *cur_txt = lv_label_get_text(ui_Door_open_text);
+        if (!cur_txt || strcmp(cur_txt, "DOOR OPEN") != 0) {
+            lv_label_set_text(ui_Door_open_text, "DOOR OPEN");
+        }
     }
+
+    last_data_ = data;
 }
+
+static void create_pairing_widgets_once() {
+    if (pairing_container) return;
+
+    // 建立一个精美的卡片大框（模拟钥匙卡片放在杯架中控台）
+    pairing_container = lv_obj_create(ui_Landing);
+    lv_obj_set_size(pairing_container, 130, 75);
+    lv_obj_align(pairing_container, LV_ALIGN_CENTER, 0, 45);
+    lv_obj_set_style_border_width(pairing_container, 2, 0);
+    lv_obj_set_style_border_color(pairing_container, lv_color_hex(0x18C3C3), 0); // 青绿色边框
+    lv_obj_set_style_bg_color(pairing_container, lv_color_hex(0x111111), 0);
+    lv_obj_set_style_bg_opa(pairing_container, 200, 0);
+    lv_obj_clear_flag(pairing_container, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *card_icon = lv_obj_create(pairing_container);
+    lv_obj_set_size(card_icon, 50, 30);
+    lv_obj_align(card_icon, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_set_style_border_width(card_icon, 1, 0);
+    lv_obj_set_style_border_color(card_icon, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(card_icon, lv_color_hex(0x333333), 0);
+
+    lv_obj_t *nfc_txt = lv_label_create(pairing_container);
+    lv_obj_align(nfc_txt, LV_ALIGN_CENTER, 0, 18);
+    lv_label_set_text(nfc_txt, "TAP KEYCARD");
+    lv_obj_set_style_text_font(nfc_txt, &lv_font_montserrat_14, 0); // 替换成 14 内置字体
+    lv_obj_set_style_text_color(nfc_txt, lv_color_white(), 0);
+
+    // 状态指示文本 Label
+    pairing_lbl = lv_label_create(ui_Landing);
+    lv_obj_align(pairing_lbl, LV_ALIGN_BOTTOM_MID, 0, -12);
+    lv_obj_set_style_text_font(pairing_lbl, &lv_font_montserrat_14, 0);
+}
+
+void Display::show_pairing(const std::string &msg) {
+    if (!initialized_) return;
+    
+    // 强制处于 Landing 界面以作展示
+    if (lv_scr_act() != ui_Landing) {
+        lv_scr_load(ui_Landing);
+        lv_obj_invalidate(lv_scr_act());
+    }
+
+    create_pairing_widgets_once();
+
+    // 显示 NFC 钥匙卡片组件并展示红色高亮刷卡警告语
+    lv_obj_clear_flag(pairing_container, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(pairing_lbl, LV_OBJ_FLAG_HIDDEN);
+
+    lv_label_set_text(pairing_lbl, msg.c_str());
+    lv_obj_set_style_text_color(pairing_lbl, lv_color_hex(0xFF0000), 0); // 红色高亮
+}
+
+void Display::show_pairing_status(const std::string &msg) {
+    if (!initialized_) return;
+
+    if (lv_scr_act() != ui_Landing) {
+        lv_scr_load(ui_Landing);
+        lv_obj_invalidate(lv_scr_act());
+    }
+
+    create_pairing_widgets_once();
+
+    // 隐藏 NFC 钥匙卡片，仅展示普通的灰色连接提示状态
+    lv_obj_add_flag(pairing_container, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(pairing_lbl, LV_OBJ_FLAG_HIDDEN);
+
+    lv_label_set_text(pairing_lbl, msg.c_str());
+    lv_obj_set_style_text_color(pairing_lbl, lv_color_hex(0x808080), 0); // 灰色连接提示
+}
+
+void Display::clear() {}
+void Display::show_splash() {}
+void Display::show_error(const std::string &msg) {}
+void Display::show_text_lines(const std::string &line1, const std::string &line2, const std::string &line3) {}

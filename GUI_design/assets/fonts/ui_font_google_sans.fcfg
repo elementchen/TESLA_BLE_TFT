@@ -1,0 +1,16 @@
+{
+  "codename": "google_sans",
+  "ttf_path": "/assets/fonts/GoogleSans-Medium.ttf",
+  "bin_path": "/assets/fonts\\ui_font_google_sans.bin",
+  "c_path": "/assets/fonts\\ui_font_google_sans.c",
+  "cfg_path": "/assets/fonts\\ui_font_google_sans.fcfg",
+  "size": 16,
+  "bpp": 4,
+  "letters": 0,
+  "ranges": [
+    "0x20-0x7f"
+  ],
+  "symbols": "",
+  "customparams": "--no-compress --no-prefilter",
+  "uploaded": false
+}

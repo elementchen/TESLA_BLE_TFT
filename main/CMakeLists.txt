@@ -5,8 +5,27 @@ idf_component_register(
         "storage_adapter.cpp"
         "display.cpp"
         "fonts.cpp"
+        "ui/ui.c"
+        "ui/ui_helpers.c"
+        "ui/components/ui_comp.c"
+        "ui/components/ui_comp_hook.c"
+        "ui/components/ui_comp_cargear.c"
+        "ui/screens/ui_Landing.c"
+        "ui/screens/ui_Drive.c"
+        "ui/screens/ui_Charge.c"
+        "ui/screens/ui_Door_open.c"
+        "ui/images/ui_img_fsd_png.c"
+        "ui/images/ui_img_car1_png.c"
+        "ui/images/ui_img_charger_power_png.c"
+        "ui/images/ui_img_509039616.c"
+        "ui/images/ui_img_door_open_png.c"
+        "ui/images/ui_img_door_open_alarm_png.c"
+        "ui/fonts/ui_font_google_sans.c"
+        "ui/fonts/ui_font_Number.c"
+        "ui/fonts/ui_font_Number_small.c"
     INCLUDE_DIRS
         "."
+        "ui"
     REQUIRES
         bt
         nvs_flash
@@ -15,6 +34,7 @@ idf_component_register(
         mbedtls
         tesla-ble
         esp_lcd
+        lvgl
 )
 
 set_source_files_properties(fonts.cpp PROPERTIES COMPILE_FLAGS "-O0")
