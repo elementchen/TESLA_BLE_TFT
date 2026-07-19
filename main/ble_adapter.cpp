@@ -192,8 +192,25 @@ int BleAdapterImpl::on_gap(struct ble_gap_event *e) {
             match = (name.compare(0, 17, prefix) == 0)
                  && (name[17] == 'C' || name[17] == 'D' || name[17] == 'R' || name[17] == 'P');
         }
+
+        // Secondary match: Check advertised 128-bit Service UUID
+        // This is a backup match because Windows BLE adapter renaming can be slow or fail to update
+        if (!match) {
+            struct ble_hs_adv_fields fields;
+            int rc = ble_hs_adv_parse_fields(&fields, e->disc.data, e->disc.length_data);
+            if (rc == 0) {
+                for (int i = 0; i < fields.num_uuids128; i++) {
+                    if (memcmp(fields.uuids128[i].value, UUID_SVC.value, 16) == 0) {
+                        match = true;
+                        ESP_LOGI(TAG, "Secondary MATCH BY SERVICE UUID (00000211-b2d1-43f0-9b88-960cebf8b91e)! Connecting...");
+                        break;
+                    }
+                }
+            }
+        }
+
         if (match) {
-            ESP_LOGI(TAG, "*** MATCH! Connecting: %s rssi=%d ***", name.c_str(), e->disc.rssi);
+            ESP_LOGI(TAG, "*** MATCH! Connecting: %s rssi=%d ***", name.empty() ? "(Service UUID Match)" : name.c_str(), e->disc.rssi);
             ble_gap_disc_cancel(); do_connect(e->disc.addr);
         } return 0;
     }
