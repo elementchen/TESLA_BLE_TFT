@@ -1,6 +1,3 @@
 # Python simulation app dependencies
-bless==0.2.7
-winrt-Windows.Devices.Bluetooth==1.0.22010.2
-winrt-Windows.Devices.Bluetooth.Advertisement==1.0.22010.2
-winrt-Windows.Devices.Bluetooth.GenericAttributeProfile==1.0.22010.2
-protobuf==4.21.12
+bless>=0.2.6
+protobuf>=3.20.0
