@@ -1,0 +1,85 @@
+Command: ninja flash
+[1/10] Performing build step for 'bootloader'
+[1/1] C:\WINDOWS\system32\cmd.exe /C "cd /D E:\AI_coding_test\_Gemini\TESLA_BLE_TFT\build\bootloader\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.10_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/bootloader/bootloader.bin"
+Bootloader binary size 0x5700 bytes. 0x2900 bytes (32%) free.
+[2/10] No install step for 'bootloader'
+[3/10] Completed 'bootloader'
+[4/10] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/display.cpp.obj
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/display.cpp: In member function 'void Display::render_dashboard(const DashData&)':
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/display.cpp:449:104: warning: bitwise operation between different enumeration types '<unnamed enum>' and '<unnamed enum>' is deprecated [-Wdeprecated-enum-enum-conversion]
+  449 |                 lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0xFF0000), LV_PART_INDICATOR | LV_STATE_DEFAULT); // 能耗指示为红色
+      |                                                                                      ~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/display.cpp:458:104: warning: bitwise operation between different enumeration types '<unnamed enum>' and '<unnamed enum>' is deprecated [-Wdeprecated-enum-enum-conversion]
+  458 |                 lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0x00BA11), LV_PART_INDICATOR | LV_STATE_DEFAULT); // 动能回收指示为绿色
+      |                                                                                      ~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~
+[5/10] Linking C static library esp-idf\main\libmain.a
+[6/10] Generating esp-idf/esp_system/ld/sections.ld
+[7/10] Linking CXX executable tesla_ble_dash.elf
+[8/10] Generating binary image from built executable
+esptool.py v4.10.dev2
+Creating esp32s3 image...
+Merged 2 ELF sections
+Successfully created esp32s3 image.
+Generated E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/tesla_ble_dash.bin
+[9/10] C:\WINDOWS\system32\cmd.exe /C "cd /D E:\AI_coding_test\_Gemini\TESLA_BLE_TFT\build\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.10_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 partition --type app E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/partition_table/partition-table.bin E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/tesla_ble_dash.bin"
+tesla_ble_dash.bin binary size 0x1db3e0 bytes. Smallest app partition is 0x400000 bytes. 0x224c20 bytes (54%) free.
+[9/10] C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Espressif\frameworks\esp-idf-v5.5.4\components\esptool_py && C:\Users\cweix\AppData\Local\Programs\Python\Python310\Lib\site-packages\cmake\data\bin\cmake.exe -D IDF_PATH=C:/Espressif/frameworks/esp-idf-v5.5.4 -D SERIAL_TOOL=C:/Espressif/python_env/idf5.5_py3.10_env/Scripts/python.exe;;C:/Espressif/frameworks/esp-idf-v5.5.4/components/esptool_py/esptool/esptool.py;--chip;esp32s3 -D SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args -D WORKING_DIRECTORY=E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build -P C:/Espressif/frameworks/esp-idf-v5.5.4/components/esptool_py/run_serial_tool.cmake"
+esptool.py --chip esp32s3 -p COM10 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB 0x0 bootloader/bootloader.bin 0x20000 tesla_ble_dash.bin 0x8000 partition_table/partition-table.bin
+esptool.py v4.10.dev2
+Serial port COM10
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 28:84:85:42:11:58
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x00005fff...
+Flash will be erased from 0x00020000 to 0x001fbfff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+SHA digest in image updated
+Compressed 22272 bytes to 14241...
+Writing at 0x00000000... (100 %)
+Wrote 22272 bytes (14241 compressed) at 0x00000000 in 0.5 seconds (effective 358.1 kbit/s)...
+Hash of data verified.
+Compressed 1946592 bytes to 409638...
+Writing at 0x00020000... (3 %)
+Writing at 0x0002ba6d... (7 %)
+Writing at 0x0006b5fd... (11 %)
+Writing at 0x000a9d86... (15 %)
+Writing at 0x000e08fd... (19 %)
+Writing at 0x00111827... (23 %)
+Writing at 0x0014f5e5... (26 %)
+Writing at 0x0017799c... (30 %)
+Writing at 0x0018795c... (34 %)
+Writing at 0x0018fe69... (38 %)
+Writing at 0x0019d779... (42 %)
+Writing at 0x001a355b... (46 %)
+Writing at 0x001a9877... (50 %)
+Writing at 0x001afaea... (53 %)
+Writing at 0x001b5abd... (57 %)
+Writing at 0x001bb5bb... (61 %)
+Writing at 0x001c1214... (65 %)
+Writing at 0x001c6ee7... (69 %)
+Writing at 0x001ccca4... (73 %)
+Writing at 0x001d3206... (76 %)
+Writing at 0x001d9797... (80 %)
+Writing at 0x001df35a... (84 %)
+Writing at 0x001e82de... (88 %)
+Writing at 0x001ee40f... (92 %)
+Writing at 0x001f4794... (96 %)
+Writing at 0x001fb3c1... (100 %)
+Wrote 1946592 bytes (409638 compressed) at 0x00020000 in 13.6 seconds (effective 1147.4 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 106...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (106 compressed) at 0x00008000 in 0.1 seconds (effective 349.3 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...

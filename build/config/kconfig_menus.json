@@ -6841,6 +6841,26 @@
                 ],
                 "title": "OLED RESET GPIO",
                 "type": "int"
+            },
+            {
+                "children": [],
+                "depends_on": null,
+                "help": "If checked, the system will use real Tesla BLE NimBLE radio to search and pair with the vehicle. \nIf unchecked, it will play the mock demo script timeline.",
+                "id": "TESLA_DASH_USE_REAL_CAR_BLE",
+                "name": "TESLA_DASH_USE_REAL_CAR_BLE",
+                "range": null,
+                "title": "Enable Real Car BLE Connection",
+                "type": "bool"
+            },
+            {
+                "children": [],
+                "depends_on": null,
+                "help": "Your Tesla vehicle's 17-digit VIN code, used to derive the Bluetooth pairing key schema.",
+                "id": "TESLA_DASH_VIN",
+                "name": "TESLA_DASH_VIN",
+                "range": null,
+                "title": "Tesla Vehicle VIN (for BLE encryption)",
+                "type": "string"
             }
         ],
         "depends_on": null,

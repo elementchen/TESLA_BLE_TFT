@@ -21,4 +21,17 @@ config OLED_RESET_GPIO
     help
         Reset pin for SSD1306 OLED display (-1 = not connected)
 
+config TESLA_DASH_USE_REAL_CAR_BLE
+    bool "Enable Real Car BLE Connection"
+    default y
+    help
+        If checked, the system will use real Tesla BLE NimBLE radio to search and pair with the vehicle. 
+        If unchecked, it will play the mock demo script timeline.
+
+config TESLA_DASH_VIN
+    string "Tesla Vehicle VIN (for BLE encryption)"
+    default "LRWYGCFS2PC792568"
+    help
+        Your Tesla vehicle's 17-digit VIN code, used to derive the Bluetooth pairing key schema.
+
 endmenu

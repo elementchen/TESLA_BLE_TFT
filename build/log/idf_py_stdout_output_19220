@@ -1,0 +1,23 @@
+Command: ninja flash
+[1/11] Performing build step for 'bootloader'
+[1/1] C:\WINDOWS\system32\cmd.exe /C "cd /D E:\AI_coding_test\_Gemini\TESLA_BLE_TFT\build\bootloader\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.10_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/bootloader/bootloader.bin"
+Bootloader binary size 0x5700 bytes. 0x2900 bytes (32%) free.
+[2/11] No install step for 'bootloader'
+[3/11] Completed 'bootloader'
+[4/11] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/ble_adapter.cpp.obj
+[5/11] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/main.cpp.obj
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/main.cpp: In function 'void app_main()':
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/main.cpp:133:5: warning: missing initializer for member 'esp_timer_create_args_t::arg' [-Wmissing-field-initializers]
+  133 |     };
+      |     ^
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/main.cpp:133:5: warning: missing initializer for member 'esp_timer_create_args_t::dispatch_method' [-Wmissing-field-initializers]
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/main.cpp:133:5: warning: missing initializer for member 'esp_timer_create_args_t::skip_unhandled_events' [-Wmissing-field-initializers]
+[6/11] Linking C static library esp-idf\main\libmain.a
+[7/11] Generating esp-idf/esp_system/ld/sections.ld
+[8/11] Linking CXX executable tesla_ble_dash.elf
+FAILED: [code=1] tesla_ble_dash.elf 
+C:\WINDOWS\system32\cmd.exe /C "cd . && C:\Espressif\tools\xtensa-esp-elf\esp-14.2.0_20260121\xtensa-esp-elf\bin\xtensa-esp32s3-elf-g++.exe @"E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/toolchain/cxxflags" @"E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/toolchain/ldflags" -Wl,--cref -Wl,--defsym=IDF_TARGET_ESP32S3=0 -Wl,--Map=E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/tesla_ble_dash.map -Wl,--no-warn-rwx-segments -Wl,--orphan-handling=warn -fno-lto -Wl,--gc-sections -Wl,--warn-common -T esp32s3.peripherals.ld -T esp32s3.rom.ld -T esp32s3.rom.api.ld -T esp32s3.rom.bt_funcs.ld -T esp32s3.rom.libgcc.ld -T esp32s3.rom.wdt.ld -T esp32s3.rom.version.ld -T esp32s3.rom.ble_cca.ld -T esp32s3.rom.ble_test.ld -T esp32s3.rom.libc.ld -T esp32s3.rom.newlib.ld -T memory.ld -T sections.ld @CMakeFiles\tesla_ble_dash.elf.rsp -o tesla_ble_dash.elf && cd ."
+C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/../lib/gcc/xtensa-esp-elf/14.2.0/../../../../xtensa-esp-elf/bin/ld.exe: esp-idf/main/libmain.a(ble_adapter.cpp.obj):(.literal._ZN14BleAdapterImpl5on_rxEPKhj+0x0): undefined reference to `pending_data'
+C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/../lib/gcc/xtensa-esp-elf/14.2.0/../../../../xtensa-esp-elf/bin/ld.exe: esp-idf/main/libmain.a(ble_adapter.cpp.obj):(.literal._ZN14BleAdapterImpl5on_rxEPKhj+0x4): undefined reference to `pending_data_ready'
+collect2.exe: error: ld returned 1 exit status
+ninja: build stopped: subcommand failed.

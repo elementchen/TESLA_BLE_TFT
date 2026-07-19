@@ -1,0 +1,100 @@
+Command: ninja flash
+[1/10] Performing build step for 'bootloader'
+[1/1] C:\WINDOWS\system32\cmd.exe /C "cd /D E:\AI_coding_test\_Gemini\TESLA_BLE_TFT\build\bootloader\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.10_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/bootloader/bootloader.bin"
+Bootloader binary size 0x5700 bytes. 0x2900 bytes (32%) free.
+[2/10] No install step for 'bootloader'
+[3/10] Completed 'bootloader'
+[4/10] Building CXX object esp-idf/main/CMakeFiles/__idf_main.dir/main.cpp.obj
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/main.cpp: In function 'void app_main()':
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/main.cpp:128:5: warning: missing initializer for member 'esp_timer_create_args_t::arg' [-Wmissing-field-initializers]
+  128 |     };
+      |     ^
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/main.cpp:128:5: warning: missing initializer for member 'esp_timer_create_args_t::dispatch_method' [-Wmissing-field-initializers]
+E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/main/main.cpp:128:5: warning: missing initializer for member 'esp_timer_create_args_t::skip_unhandled_events' [-Wmissing-field-initializers]
+[5/10] Linking C static library esp-idf\main\libmain.a
+[6/10] Generating esp-idf/esp_system/ld/sections.ld
+[7/10] Linking CXX executable tesla_ble_dash.elf
+[8/10] Generating binary image from built executable
+esptool.py v4.10.dev2
+Creating esp32s3 image...
+Merged 2 ELF sections
+Successfully created esp32s3 image.
+Generated E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/tesla_ble_dash.bin
+[9/10] C:\WINDOWS\system32\cmd.exe /C "cd /D E:\AI_coding_test\_Gemini\TESLA_BLE_TFT\build\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.10_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.4/components/partition_table/check_sizes.py --offset 0x8000 partition --type app E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/partition_table/partition-table.bin E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build/tesla_ble_dash.bin"
+tesla_ble_dash.bin binary size 0x244db0 bytes. Smallest app partition is 0x400000 bytes. 0x1bb250 bytes (43%) free.
+[9/10] C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Espressif\frameworks\esp-idf-v5.5.4\components\esptool_py && C:\Users\cweix\AppData\Local\Programs\Python\Python310\Lib\site-packages\cmake\data\bin\cmake.exe -D IDF_PATH=C:/Espressif/frameworks/esp-idf-v5.5.4 -D SERIAL_TOOL=C:/Espressif/python_env/idf5.5_py3.10_env/Scripts/python.exe;;C:/Espressif/frameworks/esp-idf-v5.5.4/components/esptool_py/esptool/esptool.py;--chip;esp32s3 -D SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args -D WORKING_DIRECTORY=E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/build -P C:/Espressif/frameworks/esp-idf-v5.5.4/components/esptool_py/run_serial_tool.cmake"
+esptool.py --chip esp32s3 -p COM10 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB 0x0 bootloader/bootloader.bin 0x20000 tesla_ble_dash.bin 0x8000 partition_table/partition-table.bin
+esptool.py v4.10.dev2
+Serial port COM10
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 28:84:85:42:11:58
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x00005fff...
+Flash will be erased from 0x00020000 to 0x00264fff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+SHA digest in image updated
+Compressed 22272 bytes to 14241...
+Writing at 0x00000000... (100 %)
+Wrote 22272 bytes (14241 compressed) at 0x00000000 in 0.5 seconds (effective 357.8 kbit/s)...
+Hash of data verified.
+Compressed 2379184 bytes to 675891...
+Writing at 0x00020000... (2 %)
+Writing at 0x0002c2d5... (4 %)
+Writing at 0x0003dfd1... (7 %)
+Writing at 0x0007fe1d... (9 %)
+Writing at 0x000c76a9... (11 %)
+Writing at 0x000edb36... (14 %)
+Writing at 0x001201b2... (16 %)
+Writing at 0x00160481... (19 %)
+Writing at 0x0018610f... (21 %)
+Writing at 0x00193222... (23 %)
+Writing at 0x0019af13... (26 %)
+Writing at 0x001a3f2d... (28 %)
+Writing at 0x001b1cfd... (30 %)
+Writing at 0x001b7f42... (33 %)
+Writing at 0x001be614... (35 %)
+Writing at 0x001c4c42... (38 %)
+Writing at 0x001cacca... (40 %)
+Writing at 0x001d0ea8... (42 %)
+Writing at 0x001d6777... (45 %)
+Writing at 0x001dc1dd... (47 %)
+Writing at 0x001e1f98... (50 %)
+Writing at 0x001e7f56... (52 %)
+Writing at 0x001ee12c... (54 %)
+Writing at 0x001f3bde... (57 %)
+Writing at 0x001f9577... (59 %)
+Writing at 0x001ff2e2... (61 %)
+Writing at 0x00204e51... (64 %)
+Writing at 0x0020af89... (66 %)
+Writing at 0x002117a1... (69 %)
+Writing at 0x0021795a... (71 %)
+Writing at 0x0021d8c9... (73 %)
+Writing at 0x0022397c... (76 %)
+Writing at 0x0022996c... (78 %)
+Writing at 0x0022f7df... (80 %)
+Writing at 0x00234d45... (83 %)
+Writing at 0x0023b4a1... (85 %)
+Writing at 0x00243f94... (88 %)
+Writing at 0x0024ae79... (90 %)
+Writing at 0x00250bd6... (92 %)
+Writing at 0x002565c3... (95 %)
+Writing at 0x0025c6cb... (97 %)
+Writing at 0x00262ef2... (100 %)
+Wrote 2379184 bytes (675891 compressed) at 0x00020000 in 16.9 seconds (effective 1128.9 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 106...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (106 compressed) at 0x00008000 in 0.1 seconds (effective 364.8 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...
