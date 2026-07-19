@@ -1,0 +1,10 @@
+# ESP32 Dashboard Main Project gitignore
+/build/
+/sdkconfig
+/sdkconfig.old
+/sdkconfig.defaults.old
+/dependencies.lock
+/managed_components/
+
+# 排除独立的 Windows 仿真端子项目
+/Simulation_app/
