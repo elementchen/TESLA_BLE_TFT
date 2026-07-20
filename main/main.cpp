@@ -163,9 +163,11 @@ extern "C" void app_main() {
 
         // 如果蓝牙意外断开，强制清除有效性，回滚到寻找连接界面并重置配对触发状态
         static bool pairing_started = false;
+        static uint32_t sync_start_tick = 0;
         if (!is_connected) {
             current_data.valid = false;
             pairing_started = false;
+            sync_start_tick = 0;
         }
 
         // 2. 真实遥测数据包接收路由
@@ -174,6 +176,7 @@ extern "C" void app_main() {
             current_data.ble_connected = is_connected;
             current_data.valid = true;
             pending_data_ready = false;
+            sync_start_tick = 0; // 遥测数据生效，重置同步定时器
         }
 
         // 3. 根据真实状态和数据驱动屏幕状态
@@ -188,17 +191,35 @@ extern "C" void app_main() {
                         vehicle->pair(Keys_Role_ROLE_OWNER);
                     }
                     display.show_pairing("TAP KEYCARD ON CENTER CONSOLE");
+                    sync_start_tick = 0;
                 } else {
                     // 已配对，密钥会话建立中
-                    display.show_pairing_status("BLE connected! Syncing telemetry...");
+                    if (sync_start_tick == 0) {
+                        sync_start_tick = xTaskGetTickCount();
+                    }
+                    // 如果已连接但 8 秒内无法完成会话同步（如钥匙在车机端被删除导致拒绝），自动擦除本地旧私钥并触发重新刷卡
+                    if (xTaskGetTickCount() - sync_start_tick > pdMS_TO_TICKS(8000)) {
+                        ESP_LOGW(TAG, "Session sync rejected or timeout! Erasing invalid private key...");
+                        if (storage_adapter) {
+                            storage_adapter->remove("private_key");
+                            storage_adapter->remove("public_key");
+                        }
+                        if (vehicle) vehicle->clear_commands();
+                        pairing_started = false;
+                        sync_start_tick = 0;
+                    } else {
+                        display.show_pairing_status("BLE connected! Syncing telemetry...");
+                    }
                 }
             } else {
                 // 蓝牙寻找连接中
                 display.show_pairing_status("Connecting to Vehicle (BLE)...");
+                sync_start_tick = 0;
             }
         } else {
             // 遥测数据生效，渲染行驶仪表主屏
             display.render_dashboard(current_data);
+            sync_start_tick = 0;
         }
 
         // 4. 执行 LVGL 轮询句柄（100Hz 刷新渲染）
