@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 80 px
  * Bpp: 4
- * Opts: --bpp 4 --size 80 --font E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/GUI_design/assets/fonts/Montserrat-Regular.ttf -o E:/AI_coding_test/_Gemini/TESLA_BLE_TFT/GUI_design/assets/fonts\ui_font_Number.c --format lvgl -r 0x20-0x7f --symbols 1234567890PRND --no-compress --no-prefilter
+ * Opts: --bpp 4 --size 80 --font E:/AI_coding_test/_Gemini/ESP32_TFT_LVGL_test/GUI/assets/fonts/Montserrat-Regular.ttf -o E:/AI_coding_test/_Gemini/ESP32_TFT_LVGL_test/GUI/assets/fonts\ui_font_Number.c --format lvgl -r 0x20-0x7f --no-compress --no-prefilter
  ******************************************************************************/
 
 #include "../ui.h"

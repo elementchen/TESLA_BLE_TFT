@@ -1,6 +1,6 @@
 {
-    "uiExportFolderPath": "",
-    "projectExportFolderPath": "",
+    "uiExportFolderPath": "E:/AI_coding_test/_Gemini/ESP32_TFT_LVGL_test/LGVL_TEST/Smart_Gadget/./ui",
+    "projectExportFolderPath": "E:/AI_coding_test/_Gemini/ESP32_TFT_LVGL_test/LGVL_TEST/Smart_Gadget",
     "drive_stdio": "-",
     "drive_stdio_path": "",
     "drive_posix": "-",
