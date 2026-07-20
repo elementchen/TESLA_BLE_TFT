@@ -147,18 +147,25 @@ extern "C" void app_main() {
     current_data.ble_connected = false;
 
     while (true) {
-        // 驱动 BLE 适配器内部的延迟服务探索与发送队列
+        // 1. 驱动底层 BLE 适配器（处理延迟探索与数据包）
         if (ble_adapter) {
             ble_adapter->process();
         }
 
-        // 1. 同步物理蓝牙底层连接状态
+        // 2. 驱动特斯拉实车协议层状态机（处理 VCSEC/CarServer 密文握手与遥测轮询）
+        if (vehicle) {
+            vehicle->loop();
+        }
+
+        // 3. 同步物理蓝牙底层连接状态
         bool is_connected = ble_adapter && ble_adapter->is_connected();
         current_data.ble_connected = is_connected;
 
-        // 如果蓝牙意外断开，强制清除有效性，回滚到寻找连接界面
+        // 如果蓝牙意外断开，强制清除有效性，回滚到寻找连接界面并重置配对触发状态
+        static bool pairing_started = false;
         if (!is_connected) {
             current_data.valid = false;
+            pairing_started = false;
         }
 
         // 2. 真实遥测数据包接收路由
@@ -176,7 +183,6 @@ extern "C" void app_main() {
                 bool has_key = storage_adapter && storage_adapter->load("private_key", stored_key);
                 if (!has_key) {
                     // 未配对，提示卡片授权
-                    static bool pairing_started = false;
                     if (!pairing_started) {
                         pairing_started = true;
                         vehicle->pair(Keys_Role_ROLE_OWNER);
