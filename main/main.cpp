@@ -159,6 +159,8 @@ extern "C" void app_main() {
 
         // 3. 同步物理蓝牙底层连接状态与 2.5 秒遥测数据心跳保活检测
         static uint32_t last_telemetry_rx_tick = 0;
+        static uint32_t sync_start_tick = 0;
+        static bool pairing_started = false;
         bool is_connected = ble_adapter && ble_adapter->is_connected();
 
         // 真实遥测数据包接收路由
@@ -177,7 +179,6 @@ extern "C" void app_main() {
         current_data.ble_connected = telemetry_alive;
 
         // 如果蓝牙意外断开或心跳超时，强制清除有效性，立即刷新 UI 确保 BLE 状态圆点变红，并回滚到寻找连接界面
-        static bool pairing_started = false;
         if (!telemetry_alive) {
             current_data.valid = false;
             current_data.ble_connected = false;
