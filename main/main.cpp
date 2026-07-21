@@ -157,43 +157,40 @@ extern "C" void app_main() {
             vehicle->loop();
         }
 
-        // 3. 同步物理蓝牙底层连接状态与 2.5 秒遥测数据心跳保活检测
+        // 3. 物理蓝牙连接状态与遥测心跳检测
         static uint32_t last_telemetry_rx_tick = 0;
         static uint32_t sync_start_tick = 0;
         static bool pairing_started = false;
+
         bool is_connected = ble_adapter && ble_adapter->is_connected();
 
         // 真实遥测数据包接收路由
         if (pending_data_ready) {
             current_data = pending_data;
+            current_data.ble_connected = is_connected;
             current_data.valid = true;
             pending_data_ready = false;
             sync_start_tick = 0; // 遥测数据生效，重置同步定时器
             last_telemetry_rx_tick = xTaskGetTickCount(); // 记录最新数据到达时间戳
         }
 
-        // 心跳保活与物理连接双重判定：若物理断连 或 超过 2.5 秒静默无数据
-        bool telemetry_alive = is_connected && (last_telemetry_rx_tick != 0) &&
-                               (xTaskGetTickCount() - last_telemetry_rx_tick < pdMS_TO_TICKS(2500));
-
-        current_data.ble_connected = telemetry_alive;
-
-        // 如果蓝牙意外断开或心跳超时，强制清除有效性，立即刷新 UI 确保 BLE 状态圆点变红，并回滚到寻找连接界面
-        if (!telemetry_alive) {
-            current_data.valid = false;
-            current_data.ble_connected = false;
-            pairing_started = false;
-            sync_start_tick = 0;
-            display.render_dashboard(current_data);
+        // 遥测数据心跳超时判定：如果当前数据有效，但物理已断开或超过 2.5 秒无数据注入
+        if (current_data.valid) {
+            if (!is_connected || (last_telemetry_rx_tick != 0 && (xTaskGetTickCount() - last_telemetry_rx_tick > pdMS_TO_TICKS(2500)))) {
+                ESP_LOGW(TAG, "Telemetry timeout or BLE disconnected! Falling back to connect screen...");
+                current_data.valid = false;
+                current_data.ble_connected = false;
+            }
         }
 
-        // 3. 根据真实状态和数据驱动屏幕状态
+        // 4. 根据当前真实状态驱动 UI 屏幕切换
         if (!current_data.valid) {
             if (is_connected) {
+                // 已建立物理连接，处于密钥授权或 Session 握手阶段
                 std::vector<uint8_t> stored_key;
                 bool has_key = storage_adapter && storage_adapter->load("private_key", stored_key);
                 if (!has_key) {
-                    // 未配对，提示卡片授权
+                    // 未配对，提示中控刷卡
                     if (!pairing_started) {
                         pairing_started = true;
                         vehicle->pair(Keys_Role_ROLE_OWNER);
@@ -201,13 +198,13 @@ extern "C" void app_main() {
                     display.show_pairing("TAP KEYCARD ON CENTER CONSOLE");
                     sync_start_tick = 0;
                 } else {
-                    // 已配对，密钥会话建立中
+                    // 已配对，Session 密钥协商中
                     if (sync_start_tick == 0) {
                         sync_start_tick = xTaskGetTickCount();
                     }
-                    // 如果已连接但 8 秒内无法完成会话同步（如钥匙在车机端被删除导致拒绝），自动擦除本地旧私钥并触发重新刷卡
+                    // 8 秒会话同步超时防护（如车机端解绑了钥匙）
                     if (xTaskGetTickCount() - sync_start_tick > pdMS_TO_TICKS(8000)) {
-                        ESP_LOGW(TAG, "Session sync rejected or timeout! Erasing invalid private key...");
+                        ESP_LOGW(TAG, "Session sync timeout or key rejected! Erasing stale keys...");
                         if (storage_adapter) {
                             storage_adapter->remove("private_key");
                             storage_adapter->remove("public_key");
@@ -220,12 +217,13 @@ extern "C" void app_main() {
                     }
                 }
             } else {
-                // 蓝牙寻找连接中
+                // 蓝牙断开，展示寻找连接界面
                 display.show_pairing_status("Connecting to Vehicle (BLE)...");
+                pairing_started = false;
                 sync_start_tick = 0;
             }
         } else {
-            // 遥测数据生效，渲染行驶仪表主屏
+            // 遥测数据正常接收中，渲染驾驶仪表主屏
             display.render_dashboard(current_data);
             sync_start_tick = 0;
         }
