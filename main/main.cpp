@@ -157,28 +157,33 @@ extern "C" void app_main() {
             vehicle->loop();
         }
 
-        // 3. 同步物理蓝牙底层连接状态
+        // 3. 同步物理蓝牙底层连接状态与 2.5 秒遥测数据心跳保活检测
+        static uint32_t last_telemetry_rx_tick = 0;
         bool is_connected = ble_adapter && ble_adapter->is_connected();
-        current_data.ble_connected = is_connected;
 
-        // 如果蓝牙意外断开，强制清除有效性，立即刷新 UI 确保 BLE 状态圆点变红，并回滚到寻找连接界面
+        // 真实遥测数据包接收路由
+        if (pending_data_ready) {
+            current_data = pending_data;
+            current_data.valid = true;
+            pending_data_ready = false;
+            sync_start_tick = 0; // 遥测数据生效，重置同步定时器
+            last_telemetry_rx_tick = xTaskGetTickCount(); // 记录最新数据到达时间戳
+        }
+
+        // 心跳保活与物理连接双重判定：若物理断连 或 超过 2.5 秒静默无数据
+        bool telemetry_alive = is_connected && (last_telemetry_rx_tick != 0) &&
+                               (xTaskGetTickCount() - last_telemetry_rx_tick < pdMS_TO_TICKS(2500));
+
+        current_data.ble_connected = telemetry_alive;
+
+        // 如果蓝牙意外断开或心跳超时，强制清除有效性，立即刷新 UI 确保 BLE 状态圆点变红，并回滚到寻找连接界面
         static bool pairing_started = false;
-        static uint32_t sync_start_tick = 0;
-        if (!is_connected) {
+        if (!telemetry_alive) {
             current_data.valid = false;
             current_data.ble_connected = false;
             pairing_started = false;
             sync_start_tick = 0;
             display.render_dashboard(current_data);
-        }
-
-        // 2. 真实遥测数据包接收路由
-        if (pending_data_ready) {
-            current_data = pending_data;
-            current_data.ble_connected = is_connected;
-            current_data.valid = true;
-            pending_data_ready = false;
-            sync_start_tick = 0; // 遥测数据生效，重置同步定时器
         }
 
         // 3. 根据真实状态和数据驱动屏幕状态

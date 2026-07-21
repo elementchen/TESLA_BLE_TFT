@@ -28,7 +28,7 @@ public:
     void set_data_callback(DataCallback cb)   { data_cb_ = std::move(cb); }
     void set_status_callback(StatusCallback cb) { status_cb_ = std::move(cb); }
     void process();
-    bool is_connected() const { return state_ == State::CONNECTED; }
+    bool is_connected() const { return conn_handle_ != BLE_HS_CONN_HANDLE_NONE; }
 
     // NimBLE event handlers
     int on_gap(struct ble_gap_event *e);

@@ -279,13 +279,11 @@ static void update_cargear_widget(lv_obj_t *cargear_obj, char gear, int battery_
     }
     set_label_int(lbl_percent, battery_level, "", "%");
 
-    // 蓝牙连接状态圆点颜色实时驱动 (连接为蓝色 0x0091FF，断开为红色 0xFF0000)
+    // 蓝牙连接状态圆点颜色实时驱动 (连接为蓝色 0x0091FF，断开/超时为红色 0xFF0000)
     if (ble_dot) {
         lv_color_t target_dot_color = ble_connected ? lv_color_hex(0x0091FF) : lv_color_hex(0xFF0000);
-        lv_color_t cur_dot_color = lv_obj_get_style_bg_color(ble_dot, LV_PART_MAIN);
-        if (cur_dot_color.full != target_dot_color.full) {
-            lv_obj_set_style_bg_color(ble_dot, target_dot_color, LV_PART_MAIN);
-        }
+        lv_obj_set_style_bg_color(ble_dot, target_dot_color, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_invalidate(ble_dot);
     }
 }
 
