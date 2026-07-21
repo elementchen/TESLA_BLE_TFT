@@ -21,7 +21,8 @@ extern "C" {
 #define UI_COMP_CARGEAR_LABEL_S 5
 #define UI_COMP_CARGEAR_POWER_BAR 6
 #define UI_COMP_CARGEAR_POWER_PERCENT 7
-#define _UI_COMP_CARGEAR_NUM 8
+#define UI_COMP_CARGEAR_BLE_STAUS 8
+#define _UI_COMP_CARGEAR_NUM 9
 lv_obj_t * ui_Cargear_create(lv_obj_t * comp_parent);
 
 #ifdef __cplusplus

@@ -15,22 +15,6 @@ lv_obj_t * ui_Battery_range = NULL;
 lv_obj_t * ui_Battery_range_unit = NULL;
 lv_obj_t * ui_Cargear1 = NULL;
 // event funtions
-void ui_event_Charge(lv_event_t * e)
-{
-    lv_event_code_t event_code = lv_event_get_code(e);
-
-    if(event_code == LV_EVENT_SCREEN_LOADED) {
-        chargepower_Animation(ui_charge_power_animation, 0);
-    }
-    if(event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_LEFT) {
-        lv_indev_wait_release(lv_indev_get_act());
-        _ui_screen_change(&ui_Door_open, LV_SCR_LOAD_ANIM_FADE_ON, 500, 0, &ui_Door_open_screen_init);
-    }
-    if(event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_RIGHT) {
-        lv_indev_wait_release(lv_indev_get_act());
-        _ui_screen_change(&ui_Drive, LV_SCR_LOAD_ANIM_FADE_ON, 500, 0, &ui_Drive_screen_init);
-    }
-}
 
 // build funtions
 
@@ -61,7 +45,7 @@ void ui_Charge_screen_init(void)
     lv_obj_clear_flag(ui_charge_power_animation, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
     ui_Charge_Image = lv_img_create(ui_Charge);
-    lv_img_set_src(ui_Charge_Image, &ui_img_509039616);
+    lv_img_set_src(ui_Charge_Image, &ui_img_tesla_charging_2_png);
     lv_obj_set_width(ui_Charge_Image, LV_SIZE_CONTENT);   /// 320
     lv_obj_set_height(ui_Charge_Image, LV_SIZE_CONTENT);    /// 240
     lv_obj_set_align(ui_Charge_Image, LV_ALIGN_CENTER);
@@ -77,7 +61,7 @@ void ui_Charge_screen_init(void)
     lv_label_set_text(ui_Charge_Power, "65");
     lv_obj_set_style_text_color(ui_Charge_Power, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Charge_Power, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Charge_Power, &lv_font_montserrat_24, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Charge_Power, &lv_font_montserrat_30, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Charge_Power_Unit = lv_label_create(ui_Charge);
     lv_obj_set_width(ui_Charge_Power_Unit, LV_SIZE_CONTENT);   /// 1
@@ -88,7 +72,7 @@ void ui_Charge_screen_init(void)
     lv_label_set_text(ui_Charge_Power_Unit, "KW");
     lv_obj_set_style_text_color(ui_Charge_Power_Unit, lv_color_hex(0x808080), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Charge_Power_Unit, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Charge_Power_Unit, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Charge_Power_Unit, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Battery_range = lv_label_create(ui_Charge);
     lv_obj_set_width(ui_Battery_range, LV_SIZE_CONTENT);   /// 1
@@ -99,7 +83,7 @@ void ui_Charge_screen_init(void)
     lv_label_set_text(ui_Battery_range, "435");
     lv_obj_set_style_text_color(ui_Battery_range, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Battery_range, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Battery_range, &lv_font_montserrat_24, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Battery_range, &lv_font_montserrat_30, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Battery_range_unit = lv_label_create(ui_Charge);
     lv_obj_set_width(ui_Battery_range_unit, LV_SIZE_CONTENT);   /// 1
@@ -110,13 +94,11 @@ void ui_Charge_screen_init(void)
     lv_label_set_text(ui_Battery_range_unit, "KM");
     lv_obj_set_style_text_color(ui_Battery_range_unit, lv_color_hex(0x808080), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Battery_range_unit, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Battery_range_unit, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Battery_range_unit, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Cargear1 = ui_Cargear_create(ui_Charge);
     lv_obj_set_x(ui_Cargear1, 3);
     lv_obj_set_y(ui_Cargear1, 3);
-
-    lv_obj_add_event_cb(ui_Charge, ui_event_Charge, LV_EVENT_ALL, NULL);
 
 }
 

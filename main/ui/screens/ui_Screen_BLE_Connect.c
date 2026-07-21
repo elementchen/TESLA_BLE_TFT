@@ -6,17 +6,9 @@
 #include "../ui.h"
 
 lv_obj_t * ui_Screen_BLE_Connect = NULL;
-lv_obj_t * ui_Landing_Image = NULL;
+lv_obj_t * ui_Image2 = NULL;
 lv_obj_t * ui_BLE_Status_Label = NULL;
 // event funtions
-void ui_event_Screen_BLE_Connect(lv_event_t * e)
-{
-    lv_event_code_t event_code = lv_event_get_code(e);
-
-    if(event_code == LV_EVENT_SCREEN_LOADED) {
-        _ui_screen_change(&ui_Screen_BLE_Connect, LV_SCR_LOAD_ANIM_FADE_ON, 200, 1400, &ui_Screen_BLE_Connect_screen_init);
-    }
-}
 
 // build funtions
 
@@ -27,13 +19,15 @@ void ui_Screen_BLE_Connect_screen_init(void)
     lv_obj_set_style_bg_color(ui_Screen_BLE_Connect, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Screen_BLE_Connect, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Landing_Image = lv_img_create(ui_Screen_BLE_Connect);
-    lv_img_set_src(ui_Landing_Image, &ui_img_landing_png);
-    lv_obj_set_width(ui_Landing_Image, LV_SIZE_CONTENT);   /// 320
-    lv_obj_set_height(ui_Landing_Image, LV_SIZE_CONTENT);    /// 240
-    lv_obj_set_align(ui_Landing_Image, LV_ALIGN_CENTER);
-    lv_obj_add_flag(ui_Landing_Image, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
-    lv_obj_clear_flag(ui_Landing_Image, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    ui_Image2 = lv_img_create(ui_Screen_BLE_Connect);
+    lv_img_set_src(ui_Image2, &ui_img_landing3_png);
+    lv_obj_set_width(ui_Image2, LV_SIZE_CONTENT);   /// 320
+    lv_obj_set_height(ui_Image2, LV_SIZE_CONTENT);    /// 240
+    lv_obj_set_x(ui_Image2, 0);
+    lv_obj_set_y(ui_Image2, -25);
+    lv_obj_set_align(ui_Image2, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_Image2, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_Image2, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
     ui_BLE_Status_Label = lv_label_create(ui_Screen_BLE_Connect);
     lv_obj_set_width(ui_BLE_Status_Label, LV_SIZE_CONTENT);   /// 1
@@ -44,9 +38,7 @@ void ui_Screen_BLE_Connect_screen_init(void)
     lv_label_set_text(ui_BLE_Status_Label, "Connecting...");
     lv_obj_set_style_text_color(ui_BLE_Status_Label, lv_color_hex(0xA2A2A2), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_BLE_Status_Label, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_BLE_Status_Label, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    lv_obj_add_event_cb(ui_Screen_BLE_Connect, ui_event_Screen_BLE_Connect, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_text_font(ui_BLE_Status_Label, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
 }
 
@@ -56,7 +48,7 @@ void ui_Screen_BLE_Connect_screen_destroy(void)
 
     // NULL screen variables
     ui_Screen_BLE_Connect = NULL;
-    ui_Landing_Image = NULL;
+    ui_Image2 = NULL;
     ui_BLE_Status_Label = NULL;
 
 }

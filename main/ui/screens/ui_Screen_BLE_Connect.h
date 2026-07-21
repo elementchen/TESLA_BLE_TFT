@@ -13,9 +13,8 @@ extern "C" {
 // SCREEN: ui_Screen_BLE_Connect
 extern void ui_Screen_BLE_Connect_screen_init(void);
 extern void ui_Screen_BLE_Connect_screen_destroy(void);
-extern void ui_event_Screen_BLE_Connect(lv_event_t * e);
 extern lv_obj_t * ui_Screen_BLE_Connect;
-extern lv_obj_t * ui_Landing_Image;
+extern lv_obj_t * ui_Image2;
 extern lv_obj_t * ui_BLE_Status_Label;
 // CUSTOM VARIABLES
 

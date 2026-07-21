@@ -22,22 +22,6 @@ lv_obj_t * ui_Inside_Temp = NULL;
 lv_obj_t * ui_Outside_Temp = NULL;
 lv_obj_t * ui_Power_Save_Bar = NULL;
 // event funtions
-void ui_event_Drive(lv_event_t * e)
-{
-    lv_event_code_t event_code = lv_event_get_code(e);
-
-    if(event_code == LV_EVENT_SCREEN_LOADED) {
-        _ui_screen_change(&ui_Drive, LV_SCR_LOAD_ANIM_FADE_ON, 200, 1400, &ui_Drive_screen_init);
-    }
-    if(event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_LEFT) {
-        lv_indev_wait_release(lv_indev_get_act());
-        _ui_screen_change(&ui_Charge, LV_SCR_LOAD_ANIM_FADE_ON, 500, 0, &ui_Charge_screen_init);
-    }
-    if(event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_RIGHT) {
-        lv_indev_wait_release(lv_indev_get_act());
-        _ui_screen_change(&ui_Door_open, LV_SCR_LOAD_ANIM_FADE_ON, 500, 0, &ui_Door_open_screen_init);
-    }
-}
 
 // build funtions
 
@@ -192,15 +176,13 @@ void ui_Drive_screen_init(void)
     lv_obj_set_width(ui_Power_Save_Bar, 302);
     lv_obj_set_height(ui_Power_Save_Bar, 2);
     lv_obj_set_x(ui_Power_Save_Bar, 0);
-    lv_obj_set_y(ui_Power_Save_Bar, -91);
+    lv_obj_set_y(ui_Power_Save_Bar, 62);
     lv_obj_set_align(ui_Power_Save_Bar, LV_ALIGN_CENTER);
     lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0x4F4F4F), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Power_Save_Bar, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0x00BA11), LV_PART_INDICATOR | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Power_Save_Bar, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-
-    lv_obj_add_event_cb(ui_Drive, ui_event_Drive, LV_EVENT_ALL, NULL);
 
 }
 
