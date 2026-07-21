@@ -13,10 +13,11 @@ extern "C" {
 // SCREEN: ui_Screen_Session_Sync
 extern void ui_Screen_Session_Sync_screen_init(void);
 extern void ui_Screen_Session_Sync_screen_destroy(void);
-extern void ui_event_Screen_Session_Sync(lv_event_t * e);
 extern lv_obj_t * ui_Screen_Session_Sync;
 extern lv_obj_t * ui_sync_Image;
 extern lv_obj_t * ui_loading_animation;
+extern lv_obj_t * ui_Label1;
+extern lv_obj_t * ui_Label2;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

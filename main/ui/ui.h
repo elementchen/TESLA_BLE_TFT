@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#include "lvgl.h"
+#include "lvgl/lvgl.h"
 
 #include "ui_helpers.h"
 #include "components/ui_comp.h"
@@ -42,16 +42,17 @@ extern lv_anim_t * loading_Animation(lv_obj_t * TargetObject, int delay);
 extern lv_obj_t * ui____initial_actions0;
 
 // IMAGES AND IMAGE SETS
-LV_IMG_DECLARE(ui_img_landing_png);    // assets/landing.png
-LV_IMG_DECLARE(ui_img_keycard_png);    // assets/KeyCard.png
-LV_IMG_DECLARE(ui_img_sync_png);    // assets/sync.png
+LV_IMG_DECLARE(ui_img_landing3_png);    // assets/landing3.png
+LV_IMG_DECLARE(ui_img_keycard1_png);    // assets/KeyCard1.png
+LV_IMG_DECLARE(ui_img_keycard2_png);    // assets/KeyCard2.png
+LV_IMG_DECLARE(ui_img_keycard_titlecn_png);    // assets/KeyCard_titleCN.png
+LV_IMG_DECLARE(ui_img_sync_3_png);    // assets/sync_3.png
 LV_IMG_DECLARE(ui_img_loading_png);    // assets/loading.png
 LV_IMG_DECLARE(ui_img_fsd_png);    // assets/FSD.png
 LV_IMG_DECLARE(ui_img_car1_png);    // assets/car1.png
 LV_IMG_DECLARE(ui_img_charger_power_png);    // assets/charger_power.png
-LV_IMG_DECLARE(ui_img_509039616);    // assets/特斯拉充电.png
-LV_IMG_DECLARE(ui_img_door_open_png);    // assets/door_open.png
-LV_IMG_DECLARE(ui_img_door_open_alarm_png);    // assets/door_open_alarm.png
+LV_IMG_DECLARE(ui_img_tesla_charging_2_png);    // assets/tesla_charging_2.png
+LV_IMG_DECLARE(ui_img_door_open_3_png);    // assets/door_open_3.png
 
 // FONTS
 LV_FONT_DECLARE(ui_font_google_sans);

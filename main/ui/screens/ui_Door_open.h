@@ -13,10 +13,9 @@ extern "C" {
 // SCREEN: ui_Door_open
 extern void ui_Door_open_screen_init(void);
 extern void ui_Door_open_screen_destroy(void);
-extern void ui_event_Door_open(lv_event_t * e);
 extern lv_obj_t * ui_Door_open;
+extern lv_obj_t * ui_Image1;
 extern lv_obj_t * ui_Door_open_text;
-extern lv_obj_t * ui_door_open_img;
 extern lv_obj_t * ui_Cargear2;
 // CUSTOM VARIABLES
 

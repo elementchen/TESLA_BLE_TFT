@@ -13,7 +13,6 @@ extern "C" {
 // SCREEN: ui_Drive
 extern void ui_Drive_screen_init(void);
 extern void ui_Drive_screen_destroy(void);
-extern void ui_event_Drive(lv_event_t * e);
 extern lv_obj_t * ui_Drive;
 extern lv_obj_t * ui_Speed;
 extern lv_obj_t * ui_Speed_Label;

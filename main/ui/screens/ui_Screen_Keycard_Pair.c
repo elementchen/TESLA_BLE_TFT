@@ -6,17 +6,12 @@
 #include "../ui.h"
 
 lv_obj_t * ui_Screen_Keycard_Pair = NULL;
-lv_obj_t * ui_keycard_image = NULL;
 lv_obj_t * ui_Pair_Status = NULL;
+lv_obj_t * ui_Image8 = NULL;
+lv_obj_t * ui_Image9 = NULL;
+lv_obj_t * ui_Label5 = NULL;
+lv_obj_t * ui_Image10 = NULL;
 // event funtions
-void ui_event_Screen_Keycard_Pair(lv_event_t * e)
-{
-    lv_event_code_t event_code = lv_event_get_code(e);
-
-    if(event_code == LV_EVENT_SCREEN_LOADED) {
-        _ui_screen_change(&ui_Screen_Keycard_Pair, LV_SCR_LOAD_ANIM_FADE_ON, 200, 1400, &ui_Screen_Keycard_Pair_screen_init);
-    }
-}
 
 // build funtions
 
@@ -27,14 +22,6 @@ void ui_Screen_Keycard_Pair_screen_init(void)
     lv_obj_set_style_bg_color(ui_Screen_Keycard_Pair, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Screen_Keycard_Pair, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_keycard_image = lv_img_create(ui_Screen_Keycard_Pair);
-    lv_img_set_src(ui_keycard_image, &ui_img_keycard_png);
-    lv_obj_set_width(ui_keycard_image, LV_SIZE_CONTENT);   /// 320
-    lv_obj_set_height(ui_keycard_image, LV_SIZE_CONTENT);    /// 240
-    lv_obj_set_align(ui_keycard_image, LV_ALIGN_CENTER);
-    lv_obj_add_flag(ui_keycard_image, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
-    lv_obj_clear_flag(ui_keycard_image, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
-
     ui_Pair_Status = lv_label_create(ui_Screen_Keycard_Pair);
     lv_obj_set_width(ui_Pair_Status, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Pair_Status, LV_SIZE_CONTENT);    /// 1
@@ -44,9 +31,48 @@ void ui_Screen_Keycard_Pair_screen_init(void)
     lv_label_set_text(ui_Pair_Status, "Waiting for card...");
     lv_obj_set_style_text_color(ui_Pair_Status, lv_color_hex(0xA2A2A2), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Pair_Status, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Pair_Status, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Pair_Status, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    lv_obj_add_event_cb(ui_Screen_Keycard_Pair, ui_event_Screen_Keycard_Pair, LV_EVENT_ALL, NULL);
+    ui_Image8 = lv_img_create(ui_Screen_Keycard_Pair);
+    lv_img_set_src(ui_Image8, &ui_img_keycard1_png);
+    lv_obj_set_width(ui_Image8, LV_SIZE_CONTENT);   /// 143
+    lv_obj_set_height(ui_Image8, LV_SIZE_CONTENT);    /// 108
+    lv_obj_set_x(ui_Image8, -81);
+    lv_obj_set_y(ui_Image8, 10);
+    lv_obj_set_align(ui_Image8, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_Image8, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_Image8, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+
+    ui_Image9 = lv_img_create(ui_Screen_Keycard_Pair);
+    lv_img_set_src(ui_Image9, &ui_img_keycard2_png);
+    lv_obj_set_width(ui_Image9, LV_SIZE_CONTENT);   /// 143
+    lv_obj_set_height(ui_Image9, LV_SIZE_CONTENT);    /// 108
+    lv_obj_set_x(ui_Image9, 81);
+    lv_obj_set_y(ui_Image9, 11);
+    lv_obj_set_align(ui_Image9, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_Image9, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_Image9, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+
+    ui_Label5 = lv_label_create(ui_Screen_Keycard_Pair);
+    lv_obj_set_width(ui_Label5, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label5, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label5, 2);
+    lv_obj_set_y(ui_Label5, -96);
+    lv_obj_set_align(ui_Label5, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label5, "TAP KEYCARD");
+    lv_obj_set_style_text_color(ui_Label5, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Label5, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Label5, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_Image10 = lv_img_create(ui_Screen_Keycard_Pair);
+    lv_img_set_src(ui_Image10, &ui_img_keycard_titlecn_png);
+    lv_obj_set_width(ui_Image10, LV_SIZE_CONTENT);   /// 147
+    lv_obj_set_height(ui_Image10, LV_SIZE_CONTENT);    /// 19
+    lv_obj_set_x(ui_Image10, 0);
+    lv_obj_set_y(ui_Image10, -68);
+    lv_obj_set_align(ui_Image10, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_Image10, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_Image10, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
 }
 
@@ -56,7 +82,10 @@ void ui_Screen_Keycard_Pair_screen_destroy(void)
 
     // NULL screen variables
     ui_Screen_Keycard_Pair = NULL;
-    ui_keycard_image = NULL;
     ui_Pair_Status = NULL;
+    ui_Image8 = NULL;
+    ui_Image9 = NULL;
+    ui_Label5 = NULL;
+    ui_Image10 = NULL;
 
 }

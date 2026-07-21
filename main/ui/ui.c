@@ -31,7 +31,6 @@ lv_obj_t * ui____initial_actions0;
 ///////////////////// ANIMATIONS ////////////////////
 lv_anim_t * chargepower_Animation(lv_obj_t * TargetObject, int delay)
 {
-    lv_anim_del(TargetObject, NULL);
     lv_anim_t * out_anim;
     ui_anim_user_data_t * PropertyAnimation_0_user_data = lv_mem_alloc(sizeof(ui_anim_user_data_t));
     PropertyAnimation_0_user_data->target = TargetObject;
@@ -207,7 +206,6 @@ lv_anim_t * scrolldot_Animation(lv_obj_t * TargetObject, int delay)
 }
 lv_anim_t * dooropen_Animation(lv_obj_t * TargetObject, int delay)
 {
-    lv_anim_del(TargetObject, NULL);
     lv_anim_t * out_anim;
     ui_anim_user_data_t * PropertyAnimation_0_user_data = lv_mem_alloc(sizeof(ui_anim_user_data_t));
     PropertyAnimation_0_user_data->target = TargetObject;
@@ -232,7 +230,6 @@ lv_anim_t * dooropen_Animation(lv_obj_t * TargetObject, int delay)
 }
 lv_anim_t * loading_Animation(lv_obj_t * TargetObject, int delay)
 {
-    lv_anim_del(TargetObject, NULL);
     lv_anim_t * out_anim;
     ui_anim_user_data_t * PropertyAnimation_0_user_data = lv_mem_alloc(sizeof(ui_anim_user_data_t));
     PropertyAnimation_0_user_data->target = TargetObject;

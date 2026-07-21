@@ -13,10 +13,12 @@ extern "C" {
 // SCREEN: ui_Screen_Keycard_Pair
 extern void ui_Screen_Keycard_Pair_screen_init(void);
 extern void ui_Screen_Keycard_Pair_screen_destroy(void);
-extern void ui_event_Screen_Keycard_Pair(lv_event_t * e);
 extern lv_obj_t * ui_Screen_Keycard_Pair;
-extern lv_obj_t * ui_keycard_image;
 extern lv_obj_t * ui_Pair_Status;
+extern lv_obj_t * ui_Image8;
+extern lv_obj_t * ui_Image9;
+extern lv_obj_t * ui_Label5;
+extern lv_obj_t * ui_Image10;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

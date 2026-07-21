@@ -13,7 +13,6 @@ extern "C" {
 // SCREEN: ui_Charge
 extern void ui_Charge_screen_init(void);
 extern void ui_Charge_screen_destroy(void);
-extern void ui_event_Charge(lv_event_t * e);
 extern lv_obj_t * ui_Charge;
 extern lv_obj_t * ui_Charge_line_animation;
 extern lv_obj_t * ui_charge_power_animation;
