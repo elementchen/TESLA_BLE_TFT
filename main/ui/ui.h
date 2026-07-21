@@ -10,7 +10,15 @@
 extern "C" {
 #endif
 
-#include "lvgl/lvgl.h"
+#include "lvgl.h"
+
+// 兼容映射：当特定字号未在 LVGL 配置中勾选时，无缝回退至最近平滑字号
+#ifndef lv_font_montserrat_12
+#define lv_font_montserrat_12 lv_font_montserrat_14
+#endif
+#ifndef lv_font_montserrat_30
+#define lv_font_montserrat_30 lv_font_montserrat_24
+#endif
 
 #include "ui_helpers.h"
 #include "components/ui_comp.h"

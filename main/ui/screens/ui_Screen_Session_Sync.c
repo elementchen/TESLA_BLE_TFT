@@ -11,6 +11,14 @@ lv_obj_t * ui_loading_animation = NULL;
 lv_obj_t * ui_Label1 = NULL;
 lv_obj_t * ui_Label2 = NULL;
 // event funtions
+void ui_event_Screen_Session_Sync(lv_event_t * e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+
+    if(event_code == LV_EVENT_SCREEN_LOADED) {
+        loading_Animation(ui_loading_animation, 0);
+    }
+}
 
 // build funtions
 
@@ -54,6 +62,8 @@ void ui_Screen_Session_Sync_screen_init(void)
     lv_obj_set_height(ui_Label2, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_align(ui_Label2, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Label2, "");
+
+    lv_obj_add_event_cb(ui_Screen_Session_Sync, ui_event_Screen_Session_Sync, LV_EVENT_ALL, NULL);
 
 }
 
