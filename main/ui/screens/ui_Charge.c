@@ -15,6 +15,14 @@ lv_obj_t * ui_Battery_range = NULL;
 lv_obj_t * ui_Battery_range_unit = NULL;
 lv_obj_t * ui_Cargear1 = NULL;
 // event funtions
+void ui_event_Charge(lv_event_t * e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+
+    if(event_code == LV_EVENT_SCREEN_LOADED) {
+        chargepower_Animation(ui_charge_power_animation, 0);
+    }
+}
 
 // build funtions
 
@@ -99,6 +107,8 @@ void ui_Charge_screen_init(void)
     ui_Cargear1 = ui_Cargear_create(ui_Charge);
     lv_obj_set_x(ui_Cargear1, 3);
     lv_obj_set_y(ui_Cargear1, 3);
+
+    lv_obj_add_event_cb(ui_Charge, ui_event_Charge, LV_EVENT_ALL, NULL);
 
 }
 
