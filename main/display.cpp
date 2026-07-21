@@ -296,6 +296,11 @@ static int gear_flash_frames = 0;
 void Display::render_dashboard(const DashData &data) {
     if (!initialized_) return;
 
+    // 0. 优先且无条件更新常规页面顶部的 Cargear 组电量、档位与 BLE 状态圆点（保证断连时瞬间变红）
+    if (ui_Cargear)  update_cargear_widget(ui_Cargear, data.gear, data.battery_level, data.ble_connected);
+    if (ui_Cargear1) update_cargear_widget(ui_Cargear1, data.gear, data.battery_level, data.ble_connected);
+    if (ui_Cargear2) update_cargear_widget(ui_Cargear2, data.gear, data.battery_level, data.ble_connected);
+
     // 强制跳转安全栅栏：如果在开始更新仪表遥测时，我们还停留在配对连接子屏，则立刻强制切入主驾驶屏
     lv_obj_t *active_scr = lv_scr_act();
     if (active_scr == ui_Screen_BLE_Connect || 
@@ -387,11 +392,6 @@ void Display::render_dashboard(const DashData &data) {
     }
 
     // ─── 3. 将遥测数据源写入对应 UI Widget 控件 ───
-
-    // 更新常规页面顶部的 Cargear 组电量与档位高亮及蓝牙连接圆点
-    if (ui_Cargear)  update_cargear_widget(ui_Cargear, data.gear, data.battery_level, data.ble_connected);
-    if (ui_Cargear1) update_cargear_widget(ui_Cargear1, data.gear, data.battery_level, data.ble_connected);
-    if (ui_Cargear2) update_cargear_widget(ui_Cargear2, data.gear, data.battery_level, data.ble_connected);
 
     // (A) 行驶页面 (ui_Drive)
     if (ui_Speed_Label) {

@@ -161,13 +161,15 @@ extern "C" void app_main() {
         bool is_connected = ble_adapter && ble_adapter->is_connected();
         current_data.ble_connected = is_connected;
 
-        // 如果蓝牙意外断开，强制清除有效性，回滚到寻找连接界面并重置配对触发状态
+        // 如果蓝牙意外断开，强制清除有效性，立即刷新 UI 确保 BLE 状态圆点变红，并回滚到寻找连接界面
         static bool pairing_started = false;
         static uint32_t sync_start_tick = 0;
         if (!is_connected) {
             current_data.valid = false;
+            current_data.ble_connected = false;
             pairing_started = false;
             sync_start_tick = 0;
+            display.render_dashboard(current_data);
         }
 
         // 2. 真实遥测数据包接收路由
