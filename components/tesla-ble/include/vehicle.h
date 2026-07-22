@@ -259,6 +259,14 @@ class Vehicle {
   bool is_connected() const { return is_connected_; }
   void set_connected(bool connected);
 
+  /** Current command queue depth (for backpressure / throttling) */
+  size_t get_command_queue_depth() const { return command_queue_.size(); }
+  static constexpr size_t COMMAND_QUEUE_WARN_THRESHOLD = 24;  // 75% full
+
+  /** Key revocation detection (vehicle removed key from whitelist) */
+  bool is_key_revoked() const { return key_revoked_; }
+  void clear_key_revoked_flag() { key_revoked_ = false; }
+
   void set_awake(bool awake) { sleep_state_ = awake ? SleepState::AWAKE : SleepState::ASLEEP; }
   void set_sleep_state(SleepState state) { sleep_state_ = state; }
   SleepState sleep_state() const { return sleep_state_; }
@@ -309,6 +317,7 @@ class Vehicle {
   bool is_connected_ = false;
   SleepState sleep_state_ = SleepState::UNKNOWN;
   bool recovery_attempted_ = false;
+  bool key_revoked_ = false;
 
   static constexpr size_t FRAME_HEADER_SIZE = 2;
   static constexpr size_t MAX_MESSAGE_SIZE = 2048;

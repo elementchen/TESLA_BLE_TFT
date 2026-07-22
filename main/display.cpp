@@ -250,7 +250,7 @@ static void set_label_color_if_diff(lv_obj_t *label, lv_color_t target_color) {
     }
 }
 
-static void update_cargear_widget(lv_obj_t *cargear_obj, char gear, int battery_level) {
+static void update_cargear_widget(lv_obj_t *cargear_obj, char gear, int battery_level, bool ble_connected) {
     if (!cargear_obj) return;
     
     // 获取组件里的子控件节点
@@ -262,6 +262,7 @@ static void update_cargear_widget(lv_obj_t *cargear_obj, char gear, int battery_
     
     lv_obj_t *bar = ui_comp_get_child(cargear_obj, UI_COMP_CARGEAR_POWER_BAR);
     lv_obj_t *lbl_percent = ui_comp_get_child(cargear_obj, UI_COMP_CARGEAR_POWER_PERCENT);
+    lv_obj_t *ble_dot = ui_comp_get_child(cargear_obj, UI_COMP_CARGEAR_BLE_STAUS);
     
     // 档位高亮与颜色切换，全属性差分过滤
     set_label_color_if_diff(lbl_P, (gear == 'P') ? lv_color_hex(0xFFFFFF) : lv_color_hex(0x303030));
@@ -277,6 +278,13 @@ static void update_cargear_widget(lv_obj_t *cargear_obj, char gear, int battery_
         }
     }
     set_label_int(lbl_percent, battery_level, "", "%");
+
+    // 蓝牙连接状态圆点颜色实时驱动 (连接为蓝色 0x0091FF，断开/超时为红色 0xFF0000)
+    if (ble_dot) {
+        lv_color_t target_dot_color = ble_connected ? lv_color_hex(0x0091FF) : lv_color_hex(0xFF0000);
+        lv_obj_set_style_bg_color(ble_dot, target_dot_color, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_invalidate(ble_dot);
+    }
 }
 
 // 记录档位切换状态，用于中间时速大字的 1 秒档位特写 (提到全局以被 force_refresh 感知)
@@ -286,10 +294,40 @@ static int gear_flash_frames = 0;
 void Display::render_dashboard(const DashData &data) {
     if (!initialized_) return;
 
+    // 0. 优先且无条件更新常规页面顶部的 Cargear 组电量、档位与 BLE 状态圆点（保证断连时瞬间变红）
+    if (ui_Cargear)  update_cargear_widget(ui_Cargear, data.gear, data.battery_level, data.ble_connected);
+    if (ui_Cargear1) update_cargear_widget(ui_Cargear1, data.gear, data.battery_level, data.ble_connected);
+    if (ui_Cargear2) update_cargear_widget(ui_Cargear2, data.gear, data.battery_level, data.ble_connected);
+
+    // ─── RSSI 信号强度标签（紧邻 BLE 小圆点右侧，每秒刷新） ───
+    {
+        lv_obj_t *active_scr = lv_scr_act();
+        static lv_obj_t *rssi_label = nullptr;
+        static lv_obj_t *rssi_parent = nullptr;
+
+        // 切屏后重新创建（或首次创建）
+        if (!rssi_label || rssi_parent != active_scr) {
+            if (rssi_label) lv_obj_del(rssi_label);
+            rssi_label = lv_label_create(active_scr);
+            lv_obj_set_style_text_color(rssi_label, lv_color_hex(0x808080), LV_PART_MAIN);
+            lv_obj_set_style_text_font(rssi_label, &lv_font_montserrat_12, LV_PART_MAIN);
+            lv_obj_set_pos(rssi_label, 175, 4);  // BLE dot center ≈ 159; label just right
+            rssi_parent = active_scr;
+        }
+
+        char buf[16];
+        if (data.rssi > -128) {
+            snprintf(buf, sizeof(buf), "%d dBm", data.rssi);
+        } else {
+            snprintf(buf, sizeof(buf), "-- dBm");
+        }
+        lv_label_set_text(rssi_label, buf);
+    }
+
     // 强制跳转安全栅栏：如果在开始更新仪表遥测时，我们还停留在配对连接子屏，则立刻强制切入主驾驶屏
     lv_obj_t *active_scr = lv_scr_act();
-    if (active_scr == ui_Screen_BLE_Connect || 
-        active_scr == ui_Screen_Keycard_Pair || 
+    if (active_scr == ui_Screen_BLE_Connect ||
+        active_scr == ui_Screen_Keycard_Pair ||
         active_scr == ui_Screen_Session_Sync) {
         lv_scr_load(ui_Drive);
         lv_obj_invalidate(lv_scr_act());
@@ -316,6 +354,7 @@ void Display::render_dashboard(const DashData &data) {
 
     // 1. 最上游数据变动差分拦截过滤（如果状态全无更新，拦截以防止任何 CPU 开销）
     if (!force_refresh && last_data_.valid &&
+        data.ble_connected == last_data_.ble_connected &&
         data.battery_level == last_data_.battery_level &&
         data.battery_range_km == last_data_.battery_range_km &&
         data.speed_kmh == last_data_.speed_kmh &&
@@ -358,7 +397,7 @@ void Display::render_dashboard(const DashData &data) {
     if (target_screen_type != last_screen_type) {
         // 切屏前彻底释放和清除上一轮遗留的无线循环动画，彻底消除后台计算开销与碎片化风险
         if (ui_charge_power_animation) lv_anim_del(ui_charge_power_animation, NULL);
-        if (ui_door_open_img)          lv_anim_del(ui_door_open_img, NULL);
+        if (ui_Image1)                 lv_anim_del(ui_Image1, NULL);
         if (ui_Door_open_text)         lv_anim_del(ui_Door_open_text, NULL);
 
         last_screen_type = target_screen_type;
@@ -376,11 +415,6 @@ void Display::render_dashboard(const DashData &data) {
     }
 
     // ─── 3. 将遥测数据源写入对应 UI Widget 控件 ───
-
-    // 更新常规页面顶部的 Cargear 组电量与档位高亮
-    if (ui_Cargear)  update_cargear_widget(ui_Cargear, data.gear, data.battery_level);
-    if (ui_Cargear1) update_cargear_widget(ui_Cargear1, data.gear, data.battery_level);
-    if (ui_Cargear2) update_cargear_widget(ui_Cargear2, data.gear, data.battery_level);
 
     // (A) 行驶页面 (ui_Drive)
     if (ui_Speed_Label) {

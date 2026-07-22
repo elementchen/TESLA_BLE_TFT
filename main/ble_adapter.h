@@ -28,7 +28,8 @@ public:
     void set_data_callback(DataCallback cb)   { data_cb_ = std::move(cb); }
     void set_status_callback(StatusCallback cb) { status_cb_ = std::move(cb); }
     void process();
-    bool is_connected() const { return state_ == State::CONNECTED; }
+    bool is_connected() const { return conn_handle_ != BLE_HS_CONN_HANDLE_NONE; }
+    int8_t get_rssi() const { return last_rssi_; }
 
     // NimBLE event handlers
     int on_gap(struct ble_gap_event *e);
@@ -53,8 +54,24 @@ private:
     uint32_t deferred_scan_at_ = 0;
     uint32_t deferred_disc_at_ = 0;
 
+    // ─── RSSI signal strength ─────────────────────────────────
+    int8_t last_rssi_ = -128;
+    uint32_t next_rssi_read_at_ = 0;
+    static constexpr uint32_t RSSI_READ_INTERVAL_MS = 1000;
+
     static constexpr size_t BLK = 18;
     static constexpr int MAX_RETRY = 5;
+
+    // ─── Exponential backoff reconnect ─────────────────────────
+    static constexpr uint32_t RECONNECT_BACKOFF_MIN_MS = 2000;
+    static constexpr uint32_t RECONNECT_BACKOFF_MAX_MS = 60000;
+    uint32_t backoff_ms_ = RECONNECT_BACKOFF_MIN_MS;
+    uint32_t consecutive_failures_ = 0;
+
+    // ─── Connection health watchdog ────────────────────────────
+    static constexpr uint32_t CONNECTION_WATCHDOG_TIMEOUT_MS = 30000;
+    uint32_t last_activity_tick_ = 0;
+
     std::queue<std::vector<uint8_t>> wq_;
     std::mutex wq_mtx_;
     std::vector<uint8_t> rx_buf_;
@@ -70,8 +87,11 @@ private:
     void send_one();
     void on_rx(const uint8_t *d, size_t n);
     void set_state(State s);
+    uint32_t next_reconnect_delay();       // exponential backoff calculator
+    void reset_reconnect_backoff();        // reset on successful connect
 
     static std::string ble_name(const std::string &vin);
+    static const char* disconnect_reason_str(int reason);
 
     // NimBLE callbacks (static)
     static BleAdapterImpl *inst_;

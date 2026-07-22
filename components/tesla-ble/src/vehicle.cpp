@@ -153,8 +153,16 @@ void TeslaBLE::Vehicle::send_command_result(UniversalMessage_Domain domain, cons
     return;
   }
 
+  // Early warning at 75% queue capacity
+  if (command_queue_.size() >= COMMAND_QUEUE_WARN_THRESHOLD &&
+      command_queue_.size() < MAX_COMMAND_QUEUE_SIZE) {
+    LOG_WARNING("Command queue at %zu/%zu - consider throttling polls",
+                command_queue_.size(), MAX_COMMAND_QUEUE_SIZE);
+  }
+
   if (command_queue_.size() >= MAX_COMMAND_QUEUE_SIZE) {
-    LOG_WARNING("Command queue full, rejecting command: %s", name.c_str());
+    LOG_WARNING("Command queue full (%zu/%zu), rejecting command: %s",
+                command_queue_.size(), MAX_COMMAND_QUEUE_SIZE, name.c_str());
     if (on_complete) {
       on_complete(OperationResult::failure(CommandError::build_failed("queue full")));
     }
@@ -794,8 +802,14 @@ void TeslaBLE::Vehicle::handle_session_info_message_(const UniversalMessage_Rout
     LOG_WARNING("Session info status not OK for %s: %d", domain_to_string(domain), session_info.status);
     auto cmd = peek_command_();
     if (cmd) {
+      bool is_key_revoked =
+          session_info.status == Signatures_Session_Info_Status_SESSION_INFO_STATUS_KEY_NOT_ON_WHITELIST;
+      if (is_key_revoked) {
+        LOG_ERROR("KEY NOT ON WHITELIST — vehicle has removed this key!");
+        key_revoked_ = true;
+      }
       mark_command_failed_(
-          cmd, session_info.status == Signatures_Session_Info_Status_SESSION_INFO_STATUS_KEY_NOT_ON_WHITELIST
+          cmd, is_key_revoked
                    ? CommandError::key_not_paired(domain_to_string(domain))
                    : CommandError::authentication_failed(domain_to_string(domain), false));
     }
@@ -1144,8 +1158,10 @@ void TeslaBLE::Vehicle::load_session_from_storage_(UniversalMessage_Domain domai
     return;
   }
 
-  // Reject sessions older than 1 hour (3600 seconds)
-  if (session_age_seconds > 3600) {
+  // Reject sessions older than 2 hours (7200 seconds)
+  // Previously 1 hour; extended because Tesla session counters remain
+  // valid for ~4 hours in practice. Still conservative to avoid crypto errors.
+  if (session_age_seconds > 7200) {
     LOG_WARNING("Stored session for %s is too old (%u seconds) - rejecting to prevent crypto errors",
                 domain_to_string(domain), session_age_seconds);
     return;
