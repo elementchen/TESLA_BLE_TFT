@@ -1,0 +1,33 @@
+一、 关于“制作数据采集工具”的建议
+强烈建议制作！ 您的思路非常正确。
+
+为什么模拟器和实车差异这么大？
+模拟器（理想环境）：Windows 模拟器是以固定 20Hz（每 50ms 一帧） 的极高频率、无延迟、无丢失地向 ESP32 广播推送数据包。ESP32 可以在几十毫秒内立刻响应界面切换。
+真实特斯拉车机（复杂无线环境）：
+不是主动推送，而是问答轮询 (Polling)：ESP32 必须先向车机发送加密 Protobuf 请求，车机处理后再回复。
+延迟极高：实车上每一次查询（如查车门 Closures State、查电量 Charge State、查胎压 Tire Pressure）单次往返需要 300ms ~ 1000ms！
+轮询周期长：ESP32 挨个查询完所有 5 种状态，一轮下来就需要 3 ~ 4 秒。
+无线干扰与命令积压：在车内无线电复杂时，数据包可能延迟或丢失，导致队列堵塞。
+数据采集工具建议方案
+建议在 ESP32 固件中开启一个**“数据采集中继模式”**（或编写一个简易的 Serial/SD卡 采集脚本），重点采集以下 3 个核心指标：
+
+各状态域（车门/车速/电量）的真实更新间隔（Interval）。
+单次 Protobuf 请求-响应的真实延迟（Latency & Round-Trip Time）。
+丢包率与命令队列堵塞频率。
+💡 我们模拟器的升级计划： 一旦采集到真实数据，我们可以直接在我们的 Python 模拟器 sim_server.py 中引入一个 “真实车机延时与抖动模拟开关”（例如模拟 800ms 响应延迟、模拟队列堵塞丢包）。这样您在电脑前就能直接复现并调试实车的各种卡顿和极限情况！
+
+二、 串口日志 WCH.txt 深度诊断报告
+我为您仔细分析了 
+
+WCH.txt
+ 中从 70005ms 到 106668ms 的真实抓包日志，彻底找到了“关门后卡在开门界面”的根本原因：
+
+🔍 日志关键线索分析：
+70005ms 时：ESP32 成功查到了关门状态 CarServer Closures State: FL=0 FR=0 RL=0 RR=0。
+73566ms ~ 95772ms 期间（长达 22 秒的时间）： 日志中连续爆发大量警告：
+text
+Command queue full, rejecting command: Tire Pressure Poll
+Command queue full, rejecting command: Closures State Poll
+Command queue full, rejecting command: Drive State Poll
+Command queue full, rejecting command: Closures State Poll
+卡顿原因： 由于 ESP32 蓝牙命令队列（Command Queue）爆满，导致后续发起的 Closures State Poll（车门状态查询）命令被系统全部直接拒绝入队（Reject）！ 在整整 20 多秒的时间里，ESP32 根本无法从车机拿到“门已关”的新数据包，ESP32 内存里的车门状态一直停留在之前的 1（开门），LVGL UI 界面自然就一直卡在开门警告页无法退回！

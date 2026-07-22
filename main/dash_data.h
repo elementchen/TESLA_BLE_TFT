@@ -11,6 +11,7 @@ struct DashData {
     bool valid = false;
     bool vehicle_awake = false;
     bool ble_connected = false;
+    int8_t rssi = -128;            // BLE signal strength (dBm), -128 = unknown
 
     // ─── 扩展遥测数据段 ───
     float motor_power_kw = 0.0f;     // 电机功率 (负值为回收，正值为输出)
@@ -44,6 +45,25 @@ struct DashData {
     bool door_open_trunk_front = false; // 前备箱 (Frunk)
     bool door_open_trunk_rear = false;  // 后备箱 (Trunk)
     bool locked = true;              // 整车上锁状态
+
+    // ─── Per-type telemetry age tracking (ms since last update) ───
+    // Reset to 0 by each callback when fresh data arrives.
+    // Age is computed in the main loop: current_tick - last_update_tick.
+    uint32_t drive_state_update_tick = 0;
+    uint32_t charge_state_update_tick = 0;
+    uint32_t climate_state_update_tick = 0;
+    uint32_t closures_state_update_tick = 0;
+    uint32_t tire_pressure_update_tick = 0;
+
+    // Per-type staleness thresholds (ms) — only drive_state triggers valid=false
+    // Real Tesla BLE: each command takes 600-1000ms.  With a queue of up to 6,
+    // worst-case response for drive_state is ~5 seconds.  Threshold at 8s gives
+    // comfortable margin before marking stale.
+    static constexpr uint32_t STALE_DRIVE_STATE_MS    = 8000;
+    static constexpr uint32_t STALE_CHARGE_STATE_MS   = 10000;
+    static constexpr uint32_t STALE_CLIMATE_STATE_MS  = 10000;
+    static constexpr uint32_t STALE_CLOSURES_STATE_MS = 5000;
+    static constexpr uint32_t STALE_TPMS_MS           = 30000;
 };
 
 // DriveState.speed_float 单位未知（可能是 mph），转换为 km/h

@@ -8,6 +8,8 @@
 #include "esp_nimble_hci.h"
 #include <cstdio>
 #include <cstring>
+#include <cinttypes>
+#include <atomic>
 
 // ─── Tesla BLE 128-bit UUIDs ────────────────────────────────────
 // BLE transmits 128-bit UUIDs in little-endian byte order.
@@ -58,6 +60,36 @@ static int hexv(char c) {
     if (c>='A'&&c<='F') return c-'A'+10;
     return -1;
 }
+// ─── Disconnect reason to human-readable string ──────────────────
+const char* BleAdapterImpl::disconnect_reason_str(int reason) {
+    switch (reason) {
+        case 0x00: return "OK";
+        case 0x08: return "TIMEOUT";
+        case 0x13: return "REMOTE_USER_TERM";
+        case 0x14: return "REMOTE_DEV_TERM (power off)";
+        case 0x15: return "LOCAL_TERM";
+        case 0x16: return "CONN_TERM_LOCAL (LL timeout)";
+        case 0x28: return "UNKNOWN_HCI";
+        case 0x3E: return "CONN_FAIL_EST";
+        default:   return "UNKNOWN";
+    }
+}
+
+// ─── Exponential backoff for reconnect ───────────────────────────
+uint32_t BleAdapterImpl::next_reconnect_delay() {
+    uint32_t d = backoff_ms_;
+    backoff_ms_ *= 2;
+    if (backoff_ms_ > RECONNECT_BACKOFF_MAX_MS)
+        backoff_ms_ = RECONNECT_BACKOFF_MAX_MS;
+    consecutive_failures_++;
+    return d;
+}
+
+void BleAdapterImpl::reset_reconnect_backoff() {
+    backoff_ms_ = RECONNECT_BACKOFF_MIN_MS;
+    consecutive_failures_ = 0;
+}
+
 static bool parse_mac(const std::string &s, ble_addr_t &a) {
     a.type = BLE_ADDR_PUBLIC; int v[6]={},i=0;
     for (size_t j=0; j<s.size()&&i<6; j++) {
@@ -164,6 +196,29 @@ bool BleAdapterImpl::write(const std::vector<uint8_t> &data) {
 void BleAdapterImpl::process() {
     send_one();
     uint32_t now = xTaskGetTickCount();
+
+    // ─── Connection health watchdog ──────────────────────────────
+    if (state_ == State::CONNECTED && last_activity_tick_ != 0) {
+        if (now - last_activity_tick_ > pdMS_TO_TICKS(CONNECTION_WATCHDOG_TIMEOUT_MS)) {
+            ESP_LOGW(TAG, "Watchdog: no BLE activity for %" PRIu32 "ms, forcing disconnect",
+                     CONNECTION_WATCHDOG_TIMEOUT_MS);
+            disconnect();
+            deferred_scan_at_ = now + pdMS_TO_TICKS(next_reconnect_delay());
+        }
+    }
+
+    // ─── Periodic RSSI read (connected only) ──────────────────
+    if (state_ == State::CONNECTED && conn_handle_ != BLE_HS_CONN_HANDLE_NONE) {
+        if (now >= next_rssi_read_at_) {
+            int8_t rssi = 0;
+            if (ble_gap_conn_rssi(conn_handle_, &rssi) == 0) {
+                last_rssi_ = rssi;
+                ESP_LOGD(TAG, "RSSI: %d dBm", rssi);
+            }
+            next_rssi_read_at_ = now + pdMS_TO_TICKS(RSSI_READ_INTERVAL_MS);
+        }
+    }
+
     if (deferred_scan_at_ && now >= deferred_scan_at_) {
         deferred_scan_at_ = 0;
         if (state_ == State::IDLE) start_scan();
@@ -193,6 +248,7 @@ int BleAdapterImpl::on_gap(struct ble_gap_event *e) {
                  && (name[17] == 'C' || name[17] == 'D' || name[17] == 'R' || name[17] == 'P');
         }
         if (match) {
+            last_rssi_ = e->disc.rssi;  // snapshot signal strength from scan
             ESP_LOGI(TAG, "*** MATCH! Connecting: %s rssi=%d ***", name.c_str(), e->disc.rssi);
             ble_gap_disc_cancel(); do_connect(e->disc.addr);
         } return 0;
@@ -201,6 +257,8 @@ int BleAdapterImpl::on_gap(struct ble_gap_event *e) {
         if(!e->connect.status){
             conn_handle_=e->connect.conn_handle;
             ESP_LOGI(TAG,"Connected h=%u",conn_handle_);
+            reset_reconnect_backoff();
+            last_activity_tick_ = xTaskGetTickCount();
             // Exchange MTU before service discovery (Tesla requires larger MTU)
             ble_att_set_preferred_mtu(256);
             int mtu_rc = ble_gattc_exchange_mtu(conn_handle_, _mtu_cb, nullptr);
@@ -208,10 +266,12 @@ int BleAdapterImpl::on_gap(struct ble_gap_event *e) {
             set_state(State::DISCOVERING);
             // Defer discovery by 1.5s to let MTU exchange + connection stabilize
             deferred_disc_at_ = xTaskGetTickCount() + pdMS_TO_TICKS(1500);
-        } else { conn_handle_=BLE_HS_CONN_HANDLE_NONE; set_state(State::IDLE); deferred_scan_at_=xTaskGetTickCount()+pdMS_TO_TICKS(2000); }
+        } else { conn_handle_=BLE_HS_CONN_HANDLE_NONE; set_state(State::IDLE); deferred_scan_at_=xTaskGetTickCount()+pdMS_TO_TICKS(next_reconnect_delay()); }
         return 0;
     case BLE_GAP_EVENT_DISCONNECT: {
-        ESP_LOGI(TAG,"Disconnected r=%d",e->disconnect.reason);
+        ESP_LOGI(TAG,"Disconnected reason=0x%02X (%s) failures=%" PRIu32,
+                 e->disconnect.reason, disconnect_reason_str(e->disconnect.reason),
+                 consecutive_failures_);
         bool was=state_==State::CONNECTED;
         conn_handle_=BLE_HS_CONN_HANDLE_NONE;
         write_handle_=read_handle_=cccd_handle_=svc_start_=svc_end_=0;
@@ -219,13 +279,14 @@ int BleAdapterImpl::on_gap(struct ble_gap_event *e) {
         rx_buf_.clear(); rx_expect_=0;
         set_state(State::IDLE);
         if(status_cb_)status_cb_(false);
-        if(was){ ESP_LOGI(TAG,"Will re-scan"); deferred_scan_at_=xTaskGetTickCount()+pdMS_TO_TICKS(2000); }
+        if(was){ ESP_LOGI(TAG,"Will re-scan in %" PRIu32 "ms", backoff_ms_); deferred_scan_at_=xTaskGetTickCount()+pdMS_TO_TICKS(next_reconnect_delay()); }
         return 0;
     }
     case BLE_GAP_EVENT_DISC_COMPLETE:
-        if(state_==State::SCANNING){ set_state(State::IDLE); deferred_scan_at_=xTaskGetTickCount()+pdMS_TO_TICKS(2000); }
+        if(state_==State::SCANNING){ set_state(State::IDLE); deferred_scan_at_=xTaskGetTickCount()+pdMS_TO_TICKS(next_reconnect_delay()); }
         return 0;
     case BLE_GAP_EVENT_NOTIFY_RX: {
+        last_activity_tick_ = xTaskGetTickCount();  // feed watchdog
         auto *o=e->notify_rx.om; uint16_t L=OS_MBUF_PKTLEN(o);
         std::vector<uint8_t> d(L); os_mbuf_copydata(o,0,L,d.data()); os_mbuf_free_chain(o);
         on_rx(d.data(),L); return 0;
@@ -387,7 +448,7 @@ void BleAdapterImpl::send_one() {
 // BLE notifications from Tesla vehicle are complete protobuf messages
 // without a 2-byte length prefix. Pass directly to the Tesla library.
 extern DashData pending_data;
-extern bool pending_data_ready;
+extern std::atomic<bool> pending_data_ready;
 
 void BleAdapterImpl::on_rx(const uint8_t *d, size_t n) {
     if (n == sizeof(SimPayload)) {
@@ -419,7 +480,7 @@ void BleAdapterImpl::on_rx(const uint8_t *d, size_t n) {
         pending_data.tpms_rr = sim->tpms[3];
         
         pending_data.valid = true;
-        pending_data_ready = true;
+        pending_data_ready.store(true, std::memory_order_release);
         return; // 直接返回，不要向下派发以防止 AES 库解密出错崩溃
     }
 
