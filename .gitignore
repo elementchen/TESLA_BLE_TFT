@@ -6,5 +6,14 @@
 /dependencies.lock
 /managed_components/
 
-# 排除独立的 Windows 仿真端子项目
+# 设计源文件 (SquareLine Studio)
+/GUI_design/
+
+# SquareLine 导出测试目录
+/LGVL_TEST/
+
+# 独立的 Windows 仿真端子项目
 /Simulation_app/
+
+# 参考项目
+/Reference/

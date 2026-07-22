@@ -5,87 +5,83 @@
 #include <vector>
 
 /**
- * @brief Priority-based polling scheduler for Tesla BLE telemetry.
+ * @brief Scene-driven polling scheduler for Tesla BLE telemetry.
  *
- * Replaces the all-at-once infotainment_poll() to prevent command queue
- * saturation. Each poll type has its own interval timer. At most one poll
- * is dispatched per process() call, and only when the command queue has
- * room (backpressure).
+ * Key insight: the Tesla vehicle can process ~1.2 BLE commands per second.
+ * To keep the command queue shallow and response latency low, we must limit
+ * simultaneous active poll types.  Different driving scenes need different data:
  *
- * Polling intervals adapt to vehicle state:
- *   - Parked (gear == P):  default intervals
- *   - Moving (gear != P):  HIGH frequency doubled, LOW/BACKGROUND halved
+ *   CONNECTING  — only VCSEC (keep-alive), nothing else
+ *   DRIVING     — closures (safety) + drive_state (speed/gear) alternating
+ *   DOOR_OPEN   — closures ONLY, fastest poll rate to detect door close ASAP
+ *   CHARGING    — charge_state ONLY, all others paused
+ *
+ * At most 2 poll types are active at once in DRIVING mode; 1 in others.
+ * This keeps the command queue at 0-1 depth and response latency at ~800ms.
  */
+
+enum class DashMode {
+    CONNECTING,   // boot / BLE reconnecting — minimal polling
+    DRIVING,      // gear != P, no doors open
+    DOOR_OPEN,    // any door open — closures only
+    CHARGING      // charging active — charge_state only
+};
+
 enum class PollPriority {
-    HIGH = 0,       // ~500ms → 250ms moving: speed/gear (drive_state)
-    MEDIUM = 1,      // ~1s:  battery, charge state, VCSEC status
-    LOW = 2,          // ~3s → 6s moving: climate, closures
-    BACKGROUND = 3     // ~10s → 20s moving: tire pressure
+    HIGH = 0,
+    MEDIUM = 1,
+    LOW = 2,
+    BACKGROUND = 3
 };
 
 struct PollSlot {
     const char *name;
     PollPriority priority;
-    uint32_t interval_ms;        // base interval (parked)
-    uint32_t moving_interval_ms;  // interval when vehicle is moving
-    uint32_t last_polled_at_ms;   // FreeRTOS tick * portTICK_PERIOD_MS
+    uint32_t interval_ms;         // base interval in DRIVING mode
+    uint32_t door_interval_ms;    // interval in DOOR_OPEN mode (0 = disabled)
+    uint32_t charge_interval_ms;  // interval in CHARGING mode (0 = disabled)
+    uint32_t connect_interval_ms; // interval in CONNECTING mode (0 = disabled)
+    uint32_t last_polled_at_ms;
+    bool enabled = false;
+    uint32_t effective_interval = 0;
     std::function<void()> poll_func;
-
-    /** Effective interval for current vehicle state */
-    uint32_t effective_interval(bool moving) const {
-        return moving ? moving_interval_ms : interval_ms;
-    }
 };
 
 class PollScheduler {
 public:
     PollScheduler() = default;
 
-    /**
-     * @brief Register a poll type with its base interval.
-     *
-     * @param name           Debug label for logging
-     * @param priority       HIGH / MEDIUM / LOW / BACKGROUND
-     * @param interval_ms    Base polling interval when parked
-     * @param moving_factor  When moving, interval is multiplied by this
-     *                       (e.g. 0.5 = twice as fast, 2.0 = half as fast)
-     * @param poll_func      Lambda that calls vehicle->xxx_state_poll()
-     */
     void register_poll(const char *name, PollPriority priority,
-                       uint32_t interval_ms, float moving_factor,
+                       uint32_t drive_interval_ms,
+                       uint32_t door_interval_ms,
+                       uint32_t charge_interval_ms,
+                       uint32_t connect_interval_ms,
                        std::function<void()> poll_func);
 
     /**
-     * @brief Notify scheduler whether the vehicle is moving.
+     * @brief Switch the dashboard scene.
      *
-     * Called from main loop, typically: moving = (gear != 'P')
+     * Disables irrelevant poll types and adjusts intervals for the current mode.
      */
-    void set_vehicle_moving(bool moving) { vehicle_moving_ = moving; }
+    void set_mode(DashMode mode);
+
+    DashMode get_mode() const { return mode_; }
 
     /**
-     * @brief Process one poll cycle.
-     *
-     * Dispatches at most ONE poll whose interval has elapsed, and only
-     * if the command queue has room (queue_depth < max - margin).
-     *
-     * @param now_ms     Current timestamp (e.g. xTaskGetTickCount * portTICK_PERIOD_MS)
-     * @param queue_depth Current command queue size
-     * @param max_queue  MAX_COMMAND_QUEUE_SIZE
+     * @brief Process one poll cycle. At most ONE poll dispatched per call.
      */
     void process(uint32_t now_ms, size_t queue_depth, size_t max_queue);
 
-    /** How many slots currently have elapsed timers */
     size_t get_pending_count() const;
 
 private:
     std::vector<PollSlot> slots_;
-    bool vehicle_moving_ = false;
+    DashMode mode_ = DashMode::CONNECTING;
+    bool mode_initialized_ = false;
     uint32_t last_dispatch_ms_ = 0;
 
-    // ── Tuning constants ──────────────────────────────────────────
-    // Don't dispatch faster than 500ms (vehicle processes ~1 cmd/sec)
-    static constexpr uint32_t MIN_DISPATCH_INTERVAL_MS = 500;
-    // Stop dispatching when queue has 6+ commands pending
-    // (equilibrium: 6 / 1.25cmd_sec_drain ≈ 5 seconds to clear)
-    static constexpr size_t BACKPRESSURE_THRESHOLD = 6;
+    // Cooldown adapts to active poll count: fewer types = faster dispatch
+    uint32_t current_cooldown_ms() const;
+
+    static constexpr size_t BACKPRESSURE_THRESHOLD = 3;
 };
