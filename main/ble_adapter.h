@@ -57,7 +57,7 @@ private:
     // ─── RSSI signal strength ─────────────────────────────────
     int8_t last_rssi_ = -128;
     uint32_t next_rssi_read_at_ = 0;
-    static constexpr uint32_t RSSI_READ_INTERVAL_MS = 1000;
+    static constexpr uint32_t RSSI_READ_INTERVAL_MS = 5000;
 
     static constexpr size_t BLK = 18;
     static constexpr int MAX_RETRY = 5;

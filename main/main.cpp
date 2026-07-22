@@ -72,14 +72,17 @@ static char gear_from_shift_state(const CarServer_ShiftState &ss) {
 
 static void on_drive_state(const CarServer_DriveState &ds) {
     if (ds.which_optional_speed_float != 0) {
-        pending_data.speed_kmh = ds.optional_speed_float.speed_float;
+        pending_data.speed_kmh = mph_to_kmh(ds.optional_speed_float.speed_float);
     } else if (ds.which_optional_speed != 0) {
-        pending_data.speed_kmh = static_cast<float>(ds.optional_speed.speed);
+        pending_data.speed_kmh = mph_to_kmh(static_cast<float>(ds.optional_speed.speed));
     }
     pending_data.gear = gear_from_shift_state(ds.shift_state);
     if (ds.which_optional_odometer_in_hundredths_of_a_mile != 0) {
         pending_data.odometer_km = hundredths_mile_to_km(
             ds.optional_odometer_in_hundredths_of_a_mile.odometer_in_hundredths_of_a_mile);
+    }
+    if (ds.which_optional_power != 0) {
+        pending_data.motor_power_kw = static_cast<float>(ds.optional_power.power);
     }
     pending_data.valid = true;
     pending_data_ready.store(true, std::memory_order_release);
@@ -203,24 +206,29 @@ static void init_tesla_ble() {
     // 必须调用初始化，以启动 NimBLE 任务栈和蓝牙广播扫描
     ble_adapter->init(TESLA_VIN);
 
-    // ─── 注册优先级轮询调度器 ───────────────────────────────────
-    // 间隔参数: (名称, 优先级, 停车间隔ms, 行驶倍率, lambda)
-    // HIGH: speed/gear — 500ms parked, 250ms moving (*0.5)
-    scheduler.register_poll("drive", PollPriority::HIGH, 500, 0.5f,
+    // ─── 场景驱动轮询调度器 ──────────────────────────────────
+    // register_poll(name, priority, DRIVING_ms, DOOR_OPEN_ms, CHARGING_ms, CONNECTING_ms, lambda)
+    // 0 = disabled in that mode. 车机每 ~800ms 消化一个命令，所以同时活跃 ≤2 种类型。
+
+    // DRIVING: closures + drive 交替 @ 500ms（最关键的实时数据）
+    // DOOR_OPEN: 仅 closures @ 500ms — 最快检测关门
+    // CHARGING: 仅 charge @ 500ms — 功率/SOC 实时
+    // CONNECTING: vcsec + drive + charge @ 2000ms — 会话维持 + 首帧数据
+    scheduler.register_poll("drive",    PollPriority::HIGH,   500,    0,    0, 2000,
         []() { if (vehicle) vehicle->drive_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
-    // MEDIUM: battery/charge/VCSEC — 1s always
-    scheduler.register_poll("charge", PollPriority::MEDIUM, 1000, 1.0f,
-        []() { if (vehicle) vehicle->charge_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
-    scheduler.register_poll("vcsec", PollPriority::MEDIUM, 1000, 1.0f,
-        []() { if (vehicle) vehicle->vcsec_poll(); });
-    // LOW: climate/closures — 3s parked, 6s moving (*2.0)
-    scheduler.register_poll("climate", PollPriority::LOW, 3000, 2.0f,
-        []() { if (vehicle) vehicle->climate_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
-    scheduler.register_poll("closures", PollPriority::LOW, 3000, 2.0f,
+    scheduler.register_poll("closures", PollPriority::HIGH,   500,  500, 30000,    0,
         []() { if (vehicle) vehicle->closures_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
-    // BACKGROUND: tire pressure — 10s parked, 20s moving (*2.0)
-    scheduler.register_poll("tpms", PollPriority::BACKGROUND, 10000, 2.0f,
+    scheduler.register_poll("charge",   PollPriority::MEDIUM, 60000,   0,  500, 2000,
+        []() { if (vehicle) vehicle->charge_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
+    scheduler.register_poll("vcsec",    PollPriority::MEDIUM, 3000,   0, 3000, 2000,
+        []() { if (vehicle) vehicle->vcsec_poll(); });
+    scheduler.register_poll("climate",  PollPriority::LOW,   60000,   0,    0,    0,
+        []() { if (vehicle) vehicle->climate_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
+    scheduler.register_poll("tpms",     PollPriority::BACKGROUND, 60000, 0, 0, 0,
         []() { if (vehicle) vehicle->tire_pressure_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
+
+    // 初始模式 — 必须在注册后显式调用以启用对应 slot
+    scheduler.set_mode(DashMode::CONNECTING);
 }
 
 // ---------- 初始化显示屏幕 ----------
@@ -267,13 +275,19 @@ extern "C" void app_main() {
     current_data.ble_connected = false;
 
     while (true) {
-        // ─── 状态变量（static 保持在栈上） ──────────────────────
+        // ─── Cat-1 启动阶段状态机 ──────────────────────────────
+        // STARTUP → 检查 NVS → 有密钥 → SYNC / 无密钥 → PAIRING
+        // SYNC    → 等连接+数据 → 成功 → session_established
+        //         → 超时(25s)  → 删密钥 → PAIRING
+        // PAIRING → 等刷卡授权 → 成功 → session_established
+        //         → 永不超时（用户可能不在车内）
+        enum class Cat1Phase : uint8_t { STARTUP, SYNC, PAIRING };
+        static Cat1Phase cat1 = Cat1Phase::STARTUP;
         static uint32_t sync_start_tick = 0;
-        static bool pairing_started = false;
+        static bool cat1_pair_sent = false;
 
         // session_established: 一旦首次收到有效遥测数据即置 true，
-        // 之后永不回退 Category-1 界面（Landing/Pair/Sync），
-        // 蓝牙波动仅通过顶部 BLE 状态小圆点颜色（蓝/红）反馈。
+        // 之后永不回退 Category-1 界面，蓝牙波动仅通过 BLE 小圆点反馈。
         static bool session_established = false;
 
         // 1. 驱动底层 BLE 适配器（处理延迟探索与数据包）
@@ -295,23 +309,44 @@ extern "C" void app_main() {
                 vehicle->clear_key_revoked_flag();
                 vehicle->clear_commands();
                 current_data.valid = false;
+                pending_data_ready.store(false, std::memory_order_release);
                 session_established = false;
-                pairing_started = false;
+                cat1 = Cat1Phase::PAIRING;
+                cat1_pair_sent = false;
                 sync_start_tick = 0;
             }
 
-            // ─── 优先级轮询调度: 每次最多发1个请求，仅在队列有空时 ───
-            uint32_t now_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
-            scheduler.set_vehicle_moving(current_data.gear != 'P' && current_data.gear != 0);
+            // ─── 场景驱动轮询调度 ──────────────────────────
+            {
+                uint32_t now_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
-            size_t qdepth = vehicle->get_command_queue_depth();
-            g_diag.record_queue_depth(qdepth);
+                // Detect dashboard mode from current telemetry
+                DashMode new_mode = DashMode::CONNECTING;
+                if (session_established) {
+                    bool any_door = (current_data.door_open_fl || current_data.door_open_fr ||
+                                     current_data.door_open_rl || current_data.door_open_rr ||
+                                     current_data.door_open_trunk_front || current_data.door_open_trunk_rear);
+                    if (any_door) {
+                        new_mode = DashMode::DOOR_OPEN;
+                    } else if (current_data.charging) {
+                        new_mode = DashMode::CHARGING;
+                    } else {
+                        new_mode = DashMode::DRIVING;
+                    }
+                }
+                if (new_mode != scheduler.get_mode()) {
+                    scheduler.set_mode(new_mode);
+                }
 
-            scheduler.process(now_ms, qdepth,
-                              TeslaBLE::Vehicle::MAX_COMMAND_QUEUE_SIZE);
+                size_t qdepth = vehicle->get_command_queue_depth();
+                g_diag.record_queue_depth(qdepth);
 
-            // ─── 诊断摘要（每 60 秒） ──────────────────────────
-            g_diag.print_summary_if_due(now_ms);
+                scheduler.process(now_ms, qdepth,
+                                  TeslaBLE::Vehicle::MAX_COMMAND_QUEUE_SIZE);
+
+                // ─── 诊断摘要（每 60 秒） ──────────────────────
+                g_diag.print_summary_if_due(now_ms);
+            }
         }
 
         // 3. 物理蓝牙连接状态与遥测心跳检测
@@ -334,81 +369,105 @@ extern "C" void app_main() {
         }
 
         // ─── 分类型遥测超时判定 ──────────────────────────────────
-        // 检测数据是否陈旧，但 session 建立后绝不回退 Category-1 界面。
         bool drive_stale = false;
         if (is_connected && current_data.drive_state_update_tick != 0) {
             uint32_t drive_age = xTaskGetTickCount() - current_data.drive_state_update_tick;
             drive_stale = (drive_age > pdMS_TO_TICKS(DashData::STALE_DRIVE_STATE_MS));
         }
         bool data_healthy = current_data.valid && is_connected && !drive_stale;
+        current_data.ble_connected = data_healthy;
 
+        // ─── 真实数据到达 → session_established ─────────────────
         if (current_data.valid && !session_established) {
-            // 确认收到来自车机的真实数据（里程/温度不可能为 0 或空）
-            bool has_real_data = (current_data.odometer_km > 0) ||
+            bool has_real_data = (current_data.battery_level > 0) ||
+                                 (current_data.odometer_km > 0) ||
                                  (current_data.inside_temp != 0.0f) ||
                                  (current_data.outside_temp != 0.0f);
             if (has_real_data) {
                 session_established = true;
-                ESP_LOGI(TAG, "Real vehicle data confirmed (odo=%" PRIu32 "km, in=%.1fC, out=%.1fC) "
-                         "— locking to Category-2 screens",
-                         current_data.odometer_km,
-                         current_data.inside_temp, current_data.outside_temp);
+                ESP_LOGI(TAG, "Real vehicle data confirmed — locking to Cat-2 screens");
             }
         }
 
-        // ─── 更新 BLE 连接状态（在 Category-2 界面上仅通过小圆点体现）───
-        current_data.ble_connected = data_healthy;
-
-        // 4. 根据当前真实状态驱动 UI 屏幕切换
-        // ─── 两分类屏幕模型 ─────────────────────────────────────
-        // Cat-1（仅开机/重启时出现）: Landing/Pair/Sync
-        // Cat-2（session 建立后只在这三个中切换）: Drive/Charge/DoorOpen
+        // 4. 屏幕状态机
+        //    Cat-1: Landing(1) / Card Pair(2) / Sync(3)
+        //    Cat-2: Drive / Charge / Door Open
         if (!session_established) {
-            // ── 启动阶段：Category-1 界面 ──────────────────────
-            if (!is_connected) {
-                display.show_pairing_status("Connecting to Vehicle (BLE)...");
-                pairing_started = false;
-                sync_start_tick = 0;
-            } else if (current_data.valid) {
-                // 遥测已通 → 下一帧即标记 session_established 并进入 Cat-2
-                display.render_dashboard(current_data);
-                sync_start_tick = 0;
-            } else {
-                // 已连接但无数据：配对或同步中
+            // ── Cat-1 启动阶段 ──────────────────────────────────
+            switch (cat1) {
+            case Cat1Phase::STARTUP: {
+                // 界面 1 — 决策点：有历史密钥 → SYNC / 无密钥 → PAIRING
                 std::vector<uint8_t> stored_key;
                 bool has_key = storage_adapter && storage_adapter->load("private_key", stored_key);
-                if (!has_key) {
-                    if (!pairing_started) {
-                        pairing_started = true;
-                        vehicle->pair(Keys_Role_ROLE_OWNER);
-                    }
-                    display.show_pairing("TAP KEYCARD ON CENTER CONSOLE");
+                if (has_key) {
+                    cat1 = Cat1Phase::SYNC;
                     sync_start_tick = 0;
+                    ESP_LOGI(TAG, "STARTUP: key found (%zu bytes) → SYNC", stored_key.size());
                 } else {
+                    cat1 = Cat1Phase::PAIRING;
+                    cat1_pair_sent = false;
+                    ESP_LOGI(TAG, "STARTUP: no key → PAIRING");
+                }
+                break;
+            }
+            case Cat1Phase::SYNC: {
+                // 界面 1↔3：有密钥，等待连接+同步
+                static uint32_t last_sync_log_tick = 0;
+                if (is_connected) {
                     if (sync_start_tick == 0) {
                         sync_start_tick = xTaskGetTickCount();
                     }
-                    if (xTaskGetTickCount() - sync_start_tick > pdMS_TO_TICKS(8000)) {
-                        ESP_LOGW(TAG, "Session sync timeout or key rejected! Erasing stale keys...");
+                    // 每 5 秒输出一次诊断
+                    if (xTaskGetTickCount() - last_sync_log_tick > pdMS_TO_TICKS(5000)) {
+                        last_sync_log_tick = xTaskGetTickCount();
+                        ESP_LOGI(TAG, "SYNC: connected=%d valid=%d qdepth=%zu",
+                                 is_connected, current_data.valid,
+                                 vehicle ? vehicle->get_command_queue_depth() : 0);
+                    }
+                    static constexpr uint32_t SYNC_TIMEOUT_MS = 25000;
+                    if (xTaskGetTickCount() - sync_start_tick > pdMS_TO_TICKS(SYNC_TIMEOUT_MS)) {
+                        ESP_LOGW(TAG, "SYNC timeout (%" PRIu32 "s) — erasing keys, falling back to PAIRING",
+                                 SYNC_TIMEOUT_MS / 1000);
                         if (storage_adapter) {
                             storage_adapter->remove("private_key");
                             storage_adapter->remove("public_key");
                         }
                         if (vehicle) vehicle->clear_commands();
-                        pairing_started = false;
+                        current_data.valid = false;
+                        cat1 = Cat1Phase::PAIRING;
+                        cat1_pair_sent = false;
                         sync_start_tick = 0;
                     } else {
                         display.show_pairing_status("BLE connected! Syncing telemetry...");
                     }
+                } else {
+                    display.show_pairing_status("Connecting to Vehicle (BLE)...");
+                    sync_start_tick = 0;
                 }
+                break;
+            }
+            case Cat1Phase::PAIRING: {
+                // 界面 2：无密钥，等待刷卡授权
+                if (!cat1_pair_sent) {
+                    cat1_pair_sent = true;
+                    vehicle->pair(Keys_Role_ROLE_OWNER);
+                    ESP_LOGI(TAG, "Pairing request sent — waiting for keycard tap");
+                }
+                // 根据 BLE 连接状态更新 UI 提示文字
+                if (cat1_pair_sent) {
+                    if (is_connected) {
+                        display.show_pairing("Connecting to vehicle...");
+                    } else {
+                        display.show_pairing("TAP KEYCARD ON CENTER CONSOLE");
+                    }
+                }
+                break;
+            }
             }
         } else {
-            // ── 正常运行：Category-2 界面（Drive/Charge/DoorOpen）───
-            // 无论蓝牙是否波动、数据是否陈旧，始终渲染仪表盘。
-            // 连接状态仅通过顶部 Cargear 组件的 BLE 小圆点颜色体现。
+            // ── Cat-2 正常运行（永不回退）───────────────────────
             display.render_dashboard(current_data);
             sync_start_tick = 0;
-            pairing_started = false;
         }
 
         // 4. 执行 LVGL 轮询句柄（100Hz 刷新渲染）

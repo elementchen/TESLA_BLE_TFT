@@ -1,154 +1,176 @@
-# 特斯拉 BLE 蓝牙遥测数据参考手册 (Tesla BLE Telemetry Data Reference)
+# 特斯拉 BLE 蓝牙遥测数据参考手册
 
-本手册基于 `yoziru/tesla-ble` 协议栈中对应的特斯拉官方 Protobuf 协议定义（[vehicle.proto](file:///e:/AI_coding_test/_Gemini/TESLA_BLE_TFT/components/tesla-ble/proto/vehicle.proto)），为您罗列了**所有可通过低功耗蓝牙 (BLE) 读取到的特斯拉车辆传感器和遥测数据**。
+> 依据 [vehicle.proto](https://github.com/yoziru/tesla-ble/blob/main/proto/vehicle.proto) (yoziru/tesla-ble)，同步更新于 2026-07-22。
 
-数据按功能划分为六个大模块：**行驶状态 (DriveState)**、**电池与充电 (ChargeState)**、**空调与温度 (ClimateState)**、**车门/锁/窗 (ClosuresState)**、**胎压 (TirePressureState)** 以及 **媒体播放 (MediaState)**。
-
----
-
-## 🚗 一、行驶状态 (DriveState)
-主要描述车辆行驶中的实时物理量和导航路线。
-
-| Protobuf 字段名 | C++ 类型 | 单位/枚举值 | 数据说明 |
-| :--- | :---: | :---: | :--- |
-| `shift_state` | `ShiftState` | `P`/`R`/`N`/`D`/`S`/`SNA` | 实时档位状态 |
-| `speed_float` | `float` | km/h 或 mph | 极其精确的实时车速（推荐用于速度表） |
-| `speed` | `uint32` | 整数 | 整数车速（过滤掉了浮点波动） |
-| `power` | `int32` | kW (千瓦) | 电机功率。**正值**代表正在输出动力，**负值**代表正在进行**动能回收 (Regen)** |
-| `odometer_in_hundredths_of_a_mile` | `int32` | 0.01 英里 | 总行驶里程（需乘 `1.609344 / 100.0` 转换为 km） |
-| `active_route_destination` | `string` | 文本 | 导航目的地的名称 |
-| `active_route_miles_to_arrival` | `float` | 英里 | 距离导航终点剩余路程（英里） |
-| `active_route_minutes_to_arrival` | `float` | 分钟 | 预计到达目的地剩余时间 |
-| `active_route_energy_at_arrival` | `float` | % | 预计到达目的地时的电池剩余百分比 (SOC) |
-| `active_route_traffic_minutes_delay`| `float` | 分钟 | 导航路线中拥堵造成的延迟时间 |
+数据分 **6 个独立 BLE 请求类型**，每个请求返回一个 Protobuf 响应包。包内的字段是一次拿完的，不额外消耗 BLE 带宽。
 
 ---
 
-## 🔋 二、电池与充电状态 (ChargeState)
-主要描述电池电量、续航和充电物理参数。
+## 请求类型总览
 
-| Protobuf 字段名 | C++ 类型 | 单位/枚举值 | 数据说明 |
-| :--- | :---: | :---: | :--- |
-| `battery_level` | `int32` | % (百分比) | 电池剩余电量 (SOC)，最适合用于电池图标 |
-| `usable_battery_level` | `int32` | % (百分比) | 真正可使用的剩余电量（扣除了寒冷天气下的受限电量） |
-| `battery_range` | `float` | 英里 | 额定剩余续航距离 (Rated Range) |
-| `est_battery_range` | `float` | 英里 | 基于最近行驶能耗评估的估计续航距离 |
-| `ideal_battery_range` | `float` | 英里 | 理想工况下的续航距离 |
-| `charging_state` | `enum` | Disconnected/Charging/Stopped/Complete/NoPower | 当前充电连接状态 |
-| `charger_voltage` | `int32` | V (伏特) | 充电输入电压（如 220V 或 380V） |
-| `charger_actual_current` | `int32` | A (安培) | 充电实际电流 |
-| `charger_power` | `int32` | kW (千瓦) | 实时充电功率 |
-| `minutes_to_full_charge` | `int32` | 分钟 | 距离充到 100% 充满所需的剩余时间 |
-| `minutes_to_charge_limit` | `int32` | 分钟 | 距离充到您设置的充电上限 (如 80%) 的剩余时间 |
-| `charge_limit_soc` | `int32` | % (百分比) | 车主设定的充电限值/上限 (例如 80% 或 90%) |
-| `charge_rate_mph` | `int32` | 英里/小时 | 充电补能速率（每小时增加的续航里程） |
-| `charge_port_door_open` | `bool` | `true` / `false` | 充电口舱门是否打开 |
-| `charge_port_color` | `enum` | Red/Green/Blue/White/Flashing | 充电口物理指示灯的实时颜色 |
+| 请求 | 域 | 频率(驾驶) | 包含的关键字段 |
+|------|-----|-----------|--------------|
+| **DriveState** | Infotainment | 500ms | 时速, 档位, 功率, 里程, 导航 |
+| **ClosuresState** | Infotainment | 500ms | 6门+2盖 开闭, 锁, 哨兵, 车窗 |
+| **ChargeState** | Infotainment | 60s | 电量, 续航, 充电功率, 充电状态 |
+| **ClimateState** | Infotainment | 60s | 内外温度, 空调, 座椅加热 |
+| **TirePressureState** | Infotainment | 60s | 四轮胎压, 胎压警报 |
+| **VCSEC Status** | VCSEC | 3s | 车辆休眠/唤醒, 锁状态 |
+
+> **关键认知**: DriveState 和 ClosuresState 是**两个独立请求**。同时发送会各占一个命令槽位 (~800ms 车机处理时间)。交替发送是保持低延迟的核心策略。
 
 ---
 
-## 🌡 三、空调与温度状态 (ClimateState)
-主要描述空调开关、车内温度、座椅方向盘加热等。
+## 🚗 一、DriveState（行驶状态）
 
-| Protobuf 字段名 | C++ 类型 | 单位/枚举值 | 数据说明 |
-| :--- | :---: | :---: | :--- |
-| `is_climate_on` | `bool` | `true` / `false` | 空调/气候控制系统是否开启 |
-| `inside_temp_celsius` | `float` | ℃ | **车内温度**（非常实用） |
-| `outside_temp_celsius` | `float` | ℃ | **车外温度**（车机屏幕显示的室外温度） |
-| `driver_temp_setting` | `float` | ℃ | 驾驶位设定温度 |
-| `passenger_temp_setting` | `float` | ℃ | 副驾驶位设定温度 |
-| `fan_status` | `int32` | 0 - 7 (挡位) | 风扇风速挡位 |
-| `steering_wheel_heater` | `bool` | `true` / `false` | 方向盘加热是否开启 |
-| `seat_heater_left` | `int32` | 0 (关) - 3 (高) | 主驾驶座椅加热等级 |
-| `seat_heater_right` | `int32` | 0 (关) - 3 (高) | 副驾驶座椅加热等级 |
-| `seat_heater_rear_left`/`right` | `int32` | 0 (关) - 3 (高) | 后排座椅加热等级 |
-| `is_preconditioning` | `bool` | `true` / `false` | 车辆是否正在进行电池/客舱预热 |
-| `climate_keeper_mode` | `enum` | Off/On/Dog/Camp (宠物/露营) | 空调驻车保持模式 |
-| `bioweapon_mode_on` | `bool` | `true` / `false` | 生化武器防御模式是否开启（HEPA滤网车型） |
+**一个包包含以下全部字段。** 功率、时速、档位、里程在同一次请求中返回。
 
----
-
-## 🔒 四、车门/锁/窗状态 (ClosuresState)
-主要描述车身安全状况和车主在车在场状态。
-
-| Protobuf 字段名 | C++ 类型 | 单位/枚举值 | 数据说明 |
-| :--- | :---: | :---: | :--- |
-| `locked` | `bool` | `true` (已锁) / `false` | **整车车门是否上锁** |
-| `is_user_present` | `bool` | `true` / `false` | **主驾驶位是否有人**（用于判断车主是否上车） |
-| `door_open_driver_front` | `bool` | `true` (开启) / `false` | 主驾驶门是否打开 |
-| `door_open_passenger_front` | `bool` | `true` (开启) / `false` | 副驾驶门是否打开 |
-| `door_open_trunk_front` (Frunk) | `bool` | `true` (开启) / `false` | **前备箱**是否打开 |
-| `door_open_trunk_rear` (Trunk) | `bool` | `true` (开启) / `false` | **后备箱**是否打开 |
-| `window_open_driver_front` | `bool` | `true` / `false` | 主驾驶侧前车窗是否降下 |
-| `sentry_mode_state` | `enum` | Off/Idle/Armed/Panic | 哨兵模式的当前警戒状态 |
-| `center_display_state` | `enum` | Off/On/Driving/Lock/Sentry | **中控大屏的实时工作状态** |
+| Protobuf 字段 | 类型 | 单位 | 说明 |
+|:---|:---:|:---:|:---|
+| `speed_float` | float | mph | 浮点车速（推荐用于速度表，需 ×1.609 转 km/h） |
+| `speed` | uint32 | mph | 整数车速 |
+| `shift_state` | enum | P/R/N/D/S/SNA | 实时档位 |
+| `power` | int32 | kW | 电机功率。**正值=消耗，负值=动能回收** |
+| `odometer_in_hundredths_of_a_mile` | int32 | 0.01mi | 总里程（÷100 × 1.609 = km） |
+| `active_route_destination` | string | — | 导航目的地名称 |
+| `active_route_miles_to_arrival` | float | mi | 导航剩余距离 |
+| `active_route_minutes_to_arrival` | float | min | 导航剩余时间 |
+| `active_route_energy_at_arrival` | float | % | 到达时预估 SOC |
+| `active_route_traffic_minutes_delay` | float | min | 拥堵延迟 |
+| `timestamp` | Timestamp | — | 数据时间戳 |
 
 ---
 
-## 🛞 五、胎压传感器状态 (TirePressureState)
-用于绘制车辆四轮实时胎压。
+## 🔒 二、ClosuresState（车门/锁/窗）
 
-| Protobuf 字段名 | C++ 类型 | 单位/枚举值 | 数据说明 |
-| :--- | :---: | :---: | :--- |
-| `tpms_pressure_fl` | `float` | **bar** (巴) | **前左轮胎压** (乘以 14.5038 可换算为 PSI) |
-| `tpms_pressure_fr` | `float` | **bar** (巴) | **前右轮胎压** |
-| `tpms_pressure_rl` | `float` | **bar** (巴) | **后左轮胎压** |
-| `tpms_pressure_rr` | `float` | **bar** (巴) | **后右轮胎压** |
-| `tpms_soft_warning_fl` / `fr`等 | `bool` | `true` / `false` | 对应轮胎是否触发“胎压偏低警告” |
-| `tpms_hard_warning_fl` / `fr`等 | `bool` | `true` / `false` | 对应轮胎是否触发“严重胎压警报” |
+**与 DriveState 分开，独立请求。** 开门模式下单独高频轮询（500ms），驾驶模式下与 DriveState 交替。
+
+| Protobuf 字段 | 类型 | 说明 |
+|:---|:---:|:---|
+| `door_open_driver_front` | bool | 主驾门 |
+| `door_open_driver_rear` | bool | 主驾后排门 |
+| `door_open_passenger_front` | bool | 副驾门 |
+| `door_open_passenger_rear` | bool | 副驾后排门 |
+| `door_open_trunk_front` | bool | 前备箱 (Frunk) |
+| `door_open_trunk_rear` | bool | 后备箱 (Trunk) |
+| `window_open_driver_front` | bool | 主驾车窗 |
+| `window_open_passenger_front` | bool | 副驾车窗 |
+| `window_open_driver_rear` | bool | 主驾后排窗 |
+| `window_open_passenger_rear` | bool | 副驾后排窗 |
+| `locked` | bool | 整车锁定 |
+| `is_user_present` | bool | 主驾是否有人 |
+| `sentry_mode_state` | enum | 哨兵模式 (Off/Idle/Armed/Aware/Panic) |
+| `center_display_state` | enum | 中控屏状态 (Off/On/Driving/Charging/Lock/Sentry) |
+| `sun_roof_state` | enum | 天窗状态 |
+| `sun_roof_percent_open` | int32 | 天窗开度 % |
+| `valet_mode` | bool | 代客模式 |
+| `remote_start` | bool | 远程启动激活中 |
+| `timestamp` | Timestamp | 数据时间戳 |
 
 ---
 
-## 🎵 六、媒体与音影播放 (MediaState)
-用于做歌词、歌名或者媒体信息显示。
+## 🔋 三、ChargeState（电池与充电）
 
-| Protobuf 字段名 | C++ 类型 | 单位/枚举值 | 数据说明 |
-| :--- | :---: | :---: | :--- |
-| `now_playing_title` | `string` | 文本 | 正在播放的**歌曲名/节目名** |
-| `now_playing_artist` | `string` | 文本 | 正在播放的**歌手名/广播台** |
-| `now_playing_album` | `string` | 文本 | 正在播放的专辑名称 |
-| `audio_volume` | `float` | 0.0 - Max | 媒体系统的当前音量百分比 |
-| `now_playing_duration` | `int32` | 毫秒 (ms) | 正在播放歌曲的总时长 |
-| `now_playing_elapsed` | `int32` | 毫秒 (ms) | 正在播放歌曲的当前进度时间 |
+| Protobuf 字段 | 类型 | 单位 | 说明 |
+|:---|:---:|:---:|:---|
+| `battery_level` | int32 | % | 剩余电量 SOC（电池图标用） |
+| `usable_battery_level` | int32 | % | 可用电量（扣除寒冷受限） |
+| `battery_range` | float | mi | 额定续航 |
+| `est_battery_range` | float | mi | 估计续航（基于能耗） |
+| `ideal_battery_range` | float | mi | 理想续航 |
+| `charging_state` | enum | — | Disconnected/Charging/Stopped/Complete/NoPower |
+| `charger_power` | int32 | kW | 实时充电功率 |
+| `charger_voltage` | int32 | V | 充电电压 |
+| `charger_actual_current` | int32 | A | 充电电流 |
+| `charge_limit_soc` | int32 | % | 充电上限（如 80%） |
+| `minutes_to_full_charge` | int32 | min | 充满剩余时间 |
+| `minutes_to_charge_limit` | int32 | min | 到上限剩余时间 |
+| `charge_port_door_open` | bool | — | 充电口开闭 |
+| `charge_port_color` | enum | — | 充电口指示灯颜色 |
+| `charge_port_latch` | enum | — | 充电枪锁止状态 |
+| `charge_rate_mph` | int32 | mi/h | 充电速率 |
+| `scheduled_charging_start_time` | uint64 | — | 预约充电时间 |
+| `preconditioning_enabled` | bool | — | 预调节开启 |
+| `managed_charging_active` | bool | — | 智能充电激活 |
+| `powershare_status` | enum | — | 外放电状态 |
+| `timestamp` | Timestamp | — | 数据时间戳 |
 
 ---
 
-## 💻 C++ 代码中提取与订阅范例
+## 🌡 四、ClimateState（空调与温度）
 
-当特斯拉通过蓝牙向 ESP32 返回数据包时，底层的 `tesla-ble` 协议栈会调用注册的回调。在我们的项目中，您可以按照以下方式直接提取扩展数据：
+| Protobuf 字段 | 类型 | 单位 | 说明 |
+|:---|:---:|:---:|:---|
+| `inside_temp_celsius` | float | ℃ | **车内温度** |
+| `outside_temp_celsius` | float | ℃ | **车外温度** |
+| `driver_temp_setting` | float | ℃ | 驾驶位设定温度 |
+| `passenger_temp_setting` | float | ℃ | 副驾设定温度 |
+| `is_climate_on` | bool | — | 空调开关 |
+| `fan_status` | int32 | 0-7 | 风扇挡位 |
+| `is_front_defroster_on` | bool | — | 前除霜 |
+| `is_rear_defroster_on` | bool | — | 后除霜 |
+| `steering_wheel_heater` | bool | — | 方向盘加热 |
+| `seat_heater_left` | int32 | 0-3 | 主驾座椅加热 |
+| `seat_heater_right` | int32 | 0-3 | 副驾座椅加热 |
+| `seat_heater_rear_left` | int32 | 0-3 | 后排左加热 |
+| `seat_heater_rear_right` | int32 | 0-3 | 后排右加热 |
+| `is_preconditioning` | bool | — | 预调节中 |
+| `climate_keeper_mode` | enum | Off/On/Dog/Camp | 驻车空调 |
+| `bioweapon_mode_on` | bool | — | 生化防御 (HEPA 车型) |
+| `cabin_overheat_protection` | enum | — | 座舱过热保护 |
+| `remote_heater_control_enabled` | bool | — | 远程加热 |
+| `timestamp` | Timestamp | — | 数据时间戳 |
 
-```cpp
-#include "vehicle.pb.h" // 乐鑫下由 vehicle.proto 自动生成的头文件
+---
 
-// 可以在 main.cpp 中扩展的数据接收回调
-static void on_drive_state(const CarServer_DriveState &state) {
-    // 1. 获取浮点时速并转换
-    if (state.has_speed_float) {
-        float speed_mph = state.speed_float;
-        float speed_kmh = speed_mph * 1.609344f;
-        ESP_LOGI("TELEMETRY", "Current Speed: %.2f km/h", speed_kmh);
-    }
-    
-    // 2. 获取实时电机功率 (kW)
-    if (state.has_power) {
-        int32_t raw_power = state.power; // 负值代表回收, 正值代表消耗
-        ESP_LOGI("TELEMETRY", "Motor Power: %d kW", raw_power);
-    }
-}
+## 🛞 五、TirePressureState（胎压）
 
-static void on_charge_state(const CarServer_ChargeState &state) {
-    // 3. 获取电池 SOC 百分比
-    if (state.has_battery_level) {
-        int32_t soc = state.battery_level;
-        ESP_LOGI("TELEMETRY", "Battery SOC: %d%%", soc);
-    }
-    
-    // 4. 获取充电功率
-    if (state.has_charger_power) {
-        int32_t charge_kw = state.charger_power;
-        ESP_LOGI("TELEMETRY", "Charging Power: %d kW", charge_kw);
-    }
-}
+| Protobuf 字段 | 类型 | 单位 | 说明 |
+|:---|:---:|:---:|:---|
+| `tpms_pressure_fl` | float | bar | 前左 |
+| `tpms_pressure_fr` | float | bar | 前右 |
+| `tpms_pressure_rl` | float | bar | 后左 |
+| `tpms_pressure_rr` | float | bar | 后右 |
+| `tpms_soft_warning_fl/fr/rl/rr` | bool | — | 胎压偏低警告 |
+| `tpms_hard_warning_fl/fr/rl/rr` | bool | — | 严重胎压警报 |
+| `tpms_rcp_front_value` | float | bar | 推荐前胎压 |
+| `tpms_rcp_rear_value` | float | bar | 推荐后胎压 |
+| `timestamp` | Timestamp | — | 数据时间戳 |
+
+---
+
+## 🔐 六、VCSEC VehicleStatus（车辆安全状态）
+
+| 字段 | 类型 | 说明 |
+|:---|:---:|:---|
+| `vehicleSleepStatus` | enum | AWAKE / ASLEEP |
+| `closureStatuses` | array | 各门锁状态汇总 |
+
+---
+
+## 📦 数据包关联关系
+
+```
+同一个 BLE 请求 → 同一个响应包（零额外开销）:
+
+DriveState 包:     speed + gear + power + odometer + nav
+ClosuresState 包:   doors ×6 + frunk/trunk + locked + windows + sentry
+ChargeState 包:     soc + range + charge_power + charge_limit + minutes_remaining
+ClimateState 包:    inside_temp + outside_temp + seat_heaters + defrost + fan
+TirePressure 包:    tpms×4 + warnings
 ```
 
-这些丰富的数据段可以给您在设计 320x240 大屏时带来无限可能（例如：充电时自动切换为大字体绿色充电界面、主控温度过高时提示、根据电机功率画出随油门变色的实时马力条、展示四轮实时胎压、甚至展示大屏当前播放的歌手等）！
+不同包之间**互不影响**——获取 power 不增加任何数据开销，它和 speed 在同一个包里。
+
+---
+
+## ⚡ 当前 ESP32 轮询策略
+
+| 模式 | 活跃请求 | 频率 | 策略 |
+|------|---------|------|------|
+| 驾驶 | DriveState + ClosuresState | 各 ~1.2s | 交替发送，队列深度 0-1 |
+| 开门 | ClosuresState | 500ms 独占 | 最快检测关门 |
+| 充电 | ChargeState | 500ms 独占 | 功率实时 |
+| 连接中 | DriveState + ChargeState + VCSEC | 2s | 轻量维持会话 |
+
+**低延迟关键**: 同时只活跃 ≤2 种请求类型，保证命令队列不堆积。

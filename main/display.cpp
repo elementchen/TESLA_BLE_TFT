@@ -315,11 +315,11 @@ void Display::render_dashboard(const DashData &data) {
             rssi_parent = active_scr;
         }
 
-        char buf[16];
+        char buf[8];
         if (data.rssi > -128) {
-            snprintf(buf, sizeof(buf), "%d dBm", data.rssi);
+            snprintf(buf, sizeof(buf), "%d", data.rssi);
         } else {
-            snprintf(buf, sizeof(buf), "-- dBm");
+            snprintf(buf, sizeof(buf), "--");
         }
         lv_label_set_text(rssi_label, buf);
     }
