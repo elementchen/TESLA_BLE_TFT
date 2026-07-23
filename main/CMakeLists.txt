@@ -9,6 +9,7 @@ idf_component_register(
         "fonts.cpp"
         "poll_scheduler.cpp"
         "diagnostics.cpp"
+        "config_manager.cpp"
         ${UI_SRCS}
     INCLUDE_DIRS
         "."
