@@ -21,9 +21,11 @@ void ui_Door_open_screen_init(void)
     lv_obj_set_style_bg_opa(ui_Door_open, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Image1 = lv_img_create(ui_Door_open);
-    lv_img_set_src(ui_Image1, &ui_img_door_open_3_png);
+    lv_img_set_src(ui_Image1, &ui_img_door_open_5_png);
     lv_obj_set_width(ui_Image1, LV_SIZE_CONTENT);   /// 320
     lv_obj_set_height(ui_Image1, LV_SIZE_CONTENT);    /// 240
+    lv_obj_set_x(ui_Image1, 0);
+    lv_obj_set_y(ui_Image1, 12);
     lv_obj_set_align(ui_Image1, LV_ALIGN_CENTER);
     lv_obj_add_flag(ui_Image1, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
     lv_obj_clear_flag(ui_Image1, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
@@ -32,9 +34,9 @@ void ui_Door_open_screen_init(void)
     lv_obj_set_width(ui_Door_open_text, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Door_open_text, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_x(ui_Door_open_text, 0);
-    lv_obj_set_y(ui_Door_open_text, 92);
+    lv_obj_set_y(ui_Door_open_text, 78);
     lv_obj_set_align(ui_Door_open_text, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Door_open_text, "DOOR OPEN");
+    lv_label_set_text(ui_Door_open_text, "DOOR OPENED");
     lv_obj_set_style_text_color(ui_Door_open_text, lv_color_hex(0xEE0000), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Door_open_text, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_Door_open_text, &lv_font_montserrat_30, LV_PART_MAIN | LV_STATE_DEFAULT);

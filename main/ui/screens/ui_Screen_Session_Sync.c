@@ -6,6 +6,7 @@
 #include "../ui.h"
 
 lv_obj_t * ui_Screen_Session_Sync = NULL;
+lv_obj_t * ui_sync_backlight = NULL;
 lv_obj_t * ui_sync_Image = NULL;
 lv_obj_t * ui_loading_animation = NULL;
 lv_obj_t * ui_Label1 = NULL;
@@ -17,6 +18,7 @@ void ui_event_Screen_Session_Sync(lv_event_t * e)
 
     if(event_code == LV_EVENT_SCREEN_LOADED) {
         loading_Animation(ui_loading_animation, 0);
+        BackLight_Animation(ui_sync_backlight, 0);
     }
 }
 
@@ -29,8 +31,18 @@ void ui_Screen_Session_Sync_screen_init(void)
     lv_obj_set_style_bg_color(ui_Screen_Session_Sync, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Screen_Session_Sync, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    ui_sync_backlight = lv_img_create(ui_Screen_Session_Sync);
+    lv_img_set_src(ui_sync_backlight, &ui_img_sync_5_backlight_png);
+    lv_obj_set_width(ui_sync_backlight, LV_SIZE_CONTENT);   /// 320
+    lv_obj_set_height(ui_sync_backlight, LV_SIZE_CONTENT);    /// 179
+    lv_obj_set_x(ui_sync_backlight, 0);
+    lv_obj_set_y(ui_sync_backlight, -17);
+    lv_obj_set_align(ui_sync_backlight, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_sync_backlight, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_sync_backlight, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+
     ui_sync_Image = lv_img_create(ui_Screen_Session_Sync);
-    lv_img_set_src(ui_sync_Image, &ui_img_sync_3_png);
+    lv_img_set_src(ui_sync_Image, &ui_img_sync_5_png);
     lv_obj_set_width(ui_sync_Image, LV_SIZE_CONTENT);   /// 320
     lv_obj_set_height(ui_sync_Image, LV_SIZE_CONTENT);    /// 240
     lv_obj_set_align(ui_sync_Image, LV_ALIGN_CENTER);
@@ -73,6 +85,7 @@ void ui_Screen_Session_Sync_screen_destroy(void)
 
     // NULL screen variables
     ui_Screen_Session_Sync = NULL;
+    ui_sync_backlight = NULL;
     ui_sync_Image = NULL;
     ui_loading_animation = NULL;
     ui_Label1 = NULL;

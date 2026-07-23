@@ -176,6 +176,21 @@ static void on_vehicle_status(const VCSEC_VehicleStatus &status) {
     bool awake = (status.vehicleSleepStatus
                   == VCSEC_VehicleSleepStatus_E_VEHICLE_SLEEP_STATUS_AWAKE);
     current_data.vehicle_awake = awake;
+
+    // 从 VCSEC 快速通道（~320ms）提取车门/锁状态
+    // ClosureState_E: 0=CLOSED → door_open=false; 其他(OPEN/AJAR/UNKNOWN等)=true
+    if (status.has_closureStatuses) {
+        auto &cs = status.closureStatuses;
+        current_data.door_open_fl = (cs.frontDriverDoor    != VCSEC_ClosureState_E_CLOSURESTATE_CLOSED);
+        current_data.door_open_fr = (cs.frontPassengerDoor != VCSEC_ClosureState_E_CLOSURESTATE_CLOSED);
+        current_data.door_open_rl = (cs.rearDriverDoor     != VCSEC_ClosureState_E_CLOSURESTATE_CLOSED);
+        current_data.door_open_rr = (cs.rearPassengerDoor  != VCSEC_ClosureState_E_CLOSURESTATE_CLOSED);
+        current_data.door_open_trunk_front = (cs.frontTrunk != VCSEC_ClosureState_E_CLOSURESTATE_CLOSED);
+        current_data.door_open_trunk_rear  = (cs.rearTrunk  != VCSEC_ClosureState_E_CLOSURESTATE_CLOSED);
+    }
+
+    // vehicleLockState: 0=UNLOCKED, 1及以上=LOCKED/INTERNAL_LOCKED等
+    current_data.locked = (status.vehicleLockState != VCSEC_VehicleLockState_E_VEHICLELOCKSTATE_UNLOCKED);
 }
 
 static void init_tesla_ble() {
@@ -210,21 +225,22 @@ static void init_tesla_ble() {
     // register_poll(name, priority, DRIVING_ms, DOOR_OPEN_ms, CHARGING_ms, CONNECTING_ms, lambda)
     // 0 = disabled in that mode. 车机每 ~800ms 消化一个命令，所以同时活跃 ≤2 种类型。
 
-    // DRIVING: closures + drive 交替 @ 500ms（最关键的实时数据）
+    // DRIVING: 仅 drive_state 独占 — 时速/档位/功率零拥堵
+    //   closures 仅 P 档时动态启用（见主循环 set_slot_enabled）
     // DOOR_OPEN: 仅 closures @ 500ms — 最快检测关门
     // CHARGING: 仅 charge @ 500ms — 功率/SOC 实时
     // CONNECTING: vcsec + drive + charge @ 2000ms — 会话维持 + 首帧数据
-    scheduler.register_poll("drive",    PollPriority::HIGH,   500,    0,    0, 2000,
+    scheduler.register_poll("drive",    PollPriority::HIGH,   800,    0,    0, 2000,
         []() { if (vehicle) vehicle->drive_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
-    scheduler.register_poll("closures", PollPriority::HIGH,   500,  500, 30000,    0,
+    scheduler.register_poll("closures", PollPriority::HIGH,   500,  500, 60000,    0,
         []() { if (vehicle) vehicle->closures_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
-    scheduler.register_poll("charge",   PollPriority::MEDIUM, 60000,   0,  500, 2000,
+    scheduler.register_poll("charge",   PollPriority::MEDIUM, 120000,  0,  500, 2000,
         []() { if (vehicle) vehicle->charge_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
-    scheduler.register_poll("vcsec",    PollPriority::MEDIUM, 3000,   0, 3000, 2000,
+    scheduler.register_poll("vcsec",    PollPriority::MEDIUM, 5000,   0, 5000, 2000,
         []() { if (vehicle) vehicle->vcsec_poll(); });
-    scheduler.register_poll("climate",  PollPriority::LOW,   60000,   0,    0,    0,
+    scheduler.register_poll("climate",  PollPriority::LOW,   300000,   0,    0,    0,
         []() { if (vehicle) vehicle->climate_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
-    scheduler.register_poll("tpms",     PollPriority::BACKGROUND, 60000, 0, 0, 0,
+    scheduler.register_poll("tpms",     PollPriority::BACKGROUND, 900000, 0, 0, 0,
         []() { if (vehicle) vehicle->tire_pressure_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
 
     // 初始模式 — 必须在注册后显式调用以启用对应 slot
@@ -338,6 +354,12 @@ extern "C" void app_main() {
                     scheduler.set_mode(new_mode);
                 }
 
+                // 仅 P 档检测车门；D/R/N/? 时带宽全给时速/档位
+                if (new_mode == DashMode::DRIVING) {
+                    bool need_doors = (current_data.gear == 'P');
+                    scheduler.set_slot_enabled("closures", need_doors);
+                }
+
                 size_t qdepth = vehicle->get_command_queue_depth();
                 g_diag.record_queue_depth(qdepth);
 
@@ -438,10 +460,10 @@ extern "C" void app_main() {
                         cat1_pair_sent = false;
                         sync_start_tick = 0;
                     } else {
-                        display.show_pairing_status("BLE connected! Syncing telemetry...");
+                        display.show_pairing_status("Syncing...");
                     }
                 } else {
-                    display.show_pairing_status("Connecting to Vehicle (BLE)...");
+                    display.show_pairing_status("System Startup");
                     sync_start_tick = 0;
                 }
                 break;
@@ -456,9 +478,9 @@ extern "C" void app_main() {
                 // 根据 BLE 连接状态更新 UI 提示文字
                 if (cat1_pair_sent) {
                     if (is_connected) {
-                        display.show_pairing("Connecting to vehicle...");
+                        display.show_pairing("Connecting...");
                     } else {
-                        display.show_pairing("TAP KEYCARD ON CENTER CONSOLE");
+                        display.show_pairing("TAP CARD");
                     }
                 }
                 break;

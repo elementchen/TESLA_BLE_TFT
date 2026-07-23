@@ -1,6 +1,7 @@
 #include "poll_scheduler.h"
 #include "diagnostics.h"
 #include "esp_log.h"
+#include <cstring>
 
 static constexpr const char *TAG = "PollSched";
 
@@ -43,6 +44,18 @@ void PollScheduler::set_mode(DashMode mode) {
         slot.effective_interval = iv;
         if (!slot.enabled) {
             ESP_LOGD(TAG, "  %s: DISABLED", slot.name);
+        }
+    }
+}
+
+void PollScheduler::set_slot_enabled(const char *name, bool enabled) {
+    for (auto &slot : slots_) {
+        if (std::strcmp(slot.name, name) == 0) {
+            if (slot.enabled != enabled) {
+                ESP_LOGI(TAG, "Slot '%s': %s", name, enabled ? "ENABLED" : "DISABLED (highway)");
+                slot.enabled = enabled;
+            }
+            return;
         }
     }
 }

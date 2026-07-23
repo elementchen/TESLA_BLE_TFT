@@ -12,7 +12,7 @@ extern "C" {
 
 #include "lvgl.h"
 
-// 兼容映射：当特定字号未在 LVGL 配置中勾选时，无缝回退至最近平滑字号
+// 兼容映射：sdkconfig 仅启用 Montserrat 14/24，未启用的字号回退
 #ifndef lv_font_montserrat_12
 #define lv_font_montserrat_12 lv_font_montserrat_14
 #endif
@@ -44,6 +44,7 @@ extern lv_anim_t * sec_Animation(lv_obj_t * TargetObject, int delay);
 extern lv_anim_t * scrolldot_Animation(lv_obj_t * TargetObject, int delay);
 extern lv_anim_t * dooropen_Animation(lv_obj_t * TargetObject, int delay);
 extern lv_anim_t * loading_Animation(lv_obj_t * TargetObject, int delay);
+extern lv_anim_t * BackLight_Animation(lv_obj_t * TargetObject, int delay);
 
 // EVENTS
 
@@ -54,13 +55,14 @@ LV_IMG_DECLARE(ui_img_landing3_png);    // assets/landing3.png
 LV_IMG_DECLARE(ui_img_keycard1_png);    // assets/KeyCard1.png
 LV_IMG_DECLARE(ui_img_keycard2_png);    // assets/KeyCard2.png
 LV_IMG_DECLARE(ui_img_keycard_titlecn_png);    // assets/KeyCard_titleCN.png
-LV_IMG_DECLARE(ui_img_sync_3_png);    // assets/sync_3.png
+LV_IMG_DECLARE(ui_img_sync_5_backlight_png);    // assets/sync_5_backlight.png
+LV_IMG_DECLARE(ui_img_sync_5_png);    // assets/sync_5.png
 LV_IMG_DECLARE(ui_img_loading_png);    // assets/loading.png
 LV_IMG_DECLARE(ui_img_fsd_png);    // assets/FSD.png
 LV_IMG_DECLARE(ui_img_car1_png);    // assets/car1.png
 LV_IMG_DECLARE(ui_img_charger_power_png);    // assets/charger_power.png
 LV_IMG_DECLARE(ui_img_tesla_charging_2_png);    // assets/tesla_charging_2.png
-LV_IMG_DECLARE(ui_img_door_open_3_png);    // assets/door_open_3.png
+LV_IMG_DECLARE(ui_img_door_open_5_png);    // assets/door_open_5.png
 
 // FONTS
 LV_FONT_DECLARE(ui_font_google_sans);

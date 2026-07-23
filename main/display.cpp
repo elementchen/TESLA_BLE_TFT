@@ -310,7 +310,7 @@ void Display::render_dashboard(const DashData &data) {
             if (rssi_label) lv_obj_del(rssi_label);
             rssi_label = lv_label_create(active_scr);
             lv_obj_set_style_text_color(rssi_label, lv_color_hex(0x808080), LV_PART_MAIN);
-            lv_obj_set_style_text_font(rssi_label, &lv_font_montserrat_12, LV_PART_MAIN);
+            lv_obj_set_style_text_font(rssi_label, &lv_font_montserrat_14, LV_PART_MAIN);
             lv_obj_set_pos(rssi_label, 175, 4);  // BLE dot center ≈ 159; label just right
             rssi_parent = active_scr;
         }
@@ -511,8 +511,8 @@ void Display::render_dashboard(const DashData &data) {
     // (C) 开门警示页 (ui_Door_open)
     if (ui_Door_open_text) {
         const char *cur_txt = lv_label_get_text(ui_Door_open_text);
-        if (!cur_txt || strcmp(cur_txt, "DOOR OPEN") != 0) {
-            lv_label_set_text(ui_Door_open_text, "DOOR OPEN");
+        if (!cur_txt || strcmp(cur_txt, "DOOR OPENED") != 0) {
+            lv_label_set_text(ui_Door_open_text, "DOOR OPENED");
         }
     }
 

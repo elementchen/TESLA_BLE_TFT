@@ -65,6 +65,10 @@ public:
      */
     void set_mode(DashMode mode);
 
+    /** Dynamically enable/disable a named slot without changing mode.
+     *  Used e.g. to pause closures polling above 10 km/h. */
+    void set_slot_enabled(const char *name, bool enabled);
+
     DashMode get_mode() const { return mode_; }
 
     /**
