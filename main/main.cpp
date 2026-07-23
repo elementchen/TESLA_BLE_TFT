@@ -3,6 +3,7 @@
 #include <memory>
 #include <atomic>
 #include <cmath>
+#include "driver/usb_serial_jtag.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -21,25 +22,14 @@
 #include "dash_data.h"
 #include "poll_scheduler.h"
 #include "diagnostics.h"
+#include "config_manager.h"
 #include "lvgl.h"
 
 static constexpr const char *TAG = "TeslaDash";
 
-// ---------- 配置 ----------
-// 自动继承来自 ESP-IDF sdkconfig (Kconfig) 图形配置菜单的实车/仿真切换参数
-#ifdef CONFIG_TESLA_DASH_VIN
-#define TESLA_VIN CONFIG_TESLA_DASH_VIN
-#else
-#define TESLA_VIN "YOUR_TESLA_VIN_HERE"
-#endif
-
 // ---------- 全局对象 ----------
 static Display   display;
 static DashData  current_data;
-
-#define OLED_SDA   0
-#define OLED_SCL   0
-#define OLED_RESET 0
 
 // ──────────────────────────────────────────────────────────────────────
 // 【实车连接模块】：标准的蓝牙通信、遥测轮询和配对逻辑。
@@ -210,7 +200,7 @@ static void init_tesla_ble() {
         if (!connected) current_data.valid = false;
     });
     vehicle = std::make_shared<TeslaBLE::Vehicle>(ble_adapter, storage_adapter);
-    vehicle->set_vin(TESLA_VIN);
+    vehicle->set_vin(config_get_vin());
     vehicle->set_drive_state_callback(on_drive_state);
     vehicle->set_charge_state_callback(on_charge_state);
     vehicle->set_climate_state_callback(on_climate_state);
@@ -219,7 +209,7 @@ static void init_tesla_ble() {
     vehicle->set_vehicle_status_callback(on_vehicle_status);
     
     // 必须调用初始化，以启动 NimBLE 任务栈和蓝牙广播扫描
-    ble_adapter->init(TESLA_VIN);
+    ble_adapter->init(config_get_vin());
 
     // ─── 场景驱动轮询调度器 ──────────────────────────────────
     // register_poll(name, priority, DRIVING_ms, DOOR_OPEN_ms, CHARGING_ms, CONNECTING_ms, lambda)
@@ -249,7 +239,8 @@ static void init_tesla_ble() {
 
 // ---------- 初始化显示屏幕 ----------
 static void init_display() {
-    if (!display.init(OLED_SDA, OLED_SCL, OLED_RESET)) {
+    DisplayPins pins = config_get_display_pins();
+    if (!display.init(pins)) {
         ESP_LOGE(TAG, "Display init failed");
         return;
     }
@@ -264,8 +255,9 @@ static void lvgl_tick_timer_cb(void *arg) {
 // ─── 演示分支 app_main 入口 ──────────────────────────────────────────
 
 extern "C" void app_main() {
-    ESP_LOGI(TAG, "=== Tesla BLE Dashboard (LVGL UI Design Branch) ===");
-    
+    ESP_LOGI(TAG, "=== Tesla BLE Dashboard v2.0 ===");
+
+    config_manager_init();
     init_display();
     init_tesla_ble();
     
@@ -492,7 +484,25 @@ extern "C" void app_main() {
             sync_start_tick = 0;
         }
 
-        // 4. 执行 LVGL 轮询句柄（100Hz 刷新渲染）
+        // 4. 处理 USB 串口配置命令（非阻塞）
+        {
+            static std::string serial_buf;
+            uint8_t buf[64];
+            int n = usb_serial_jtag_read_bytes(buf, sizeof(buf), 0); if (n > 0) ESP_LOGI(TAG, "SerialRX: %d bytes", n);
+            for (int i = 0; i < n; i++) {
+                char ch = (char)buf[i];
+                if (ch == '\n' || ch == '\r') {
+                    if (!serial_buf.empty()) {
+                        config_manager_process_command(serial_buf);
+                        serial_buf.clear();
+                    }
+                } else if (ch >= 0x20 && ch <= 0x7E) {
+                    serial_buf += ch;
+                }
+            }
+        }
+
+        // 5. 执行 LVGL 轮询句柄（100Hz 刷新渲染）
         for (int step = 0; step < 5; step++) {
             lv_timer_handler();
             vTaskDelay(pdMS_TO_TICKS(10));

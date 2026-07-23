@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "dash_data.h"
+#include "config_manager.h"
 #include "esp_lcd_types.h"
 #include "lvgl.h"
 #include "ui.h"
@@ -12,7 +13,7 @@ public:
     Display() = default;
     ~Display();
 
-    bool init(int sda, int scl, int reset);
+    bool init(const DisplayPins &pins);
     void render_dashboard(const DashData &data);
     void show_error(const std::string &msg);
     void show_text_lines(const std::string &line1, const std::string &line2,

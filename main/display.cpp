@@ -22,15 +22,7 @@
 #include "ui/screens/ui_Screen_Keycard_Pair.h"
 #include "ui/screens/ui_Screen_Session_Sync.h"
 
-#define DISPLAY_SPI_SCK_PIN     12
-#define DISPLAY_SPI_MOSI_PIN    11
-#define DISPLAY_SPI_MISO_PIN    13
-#define DISPLAY_DC_PIN          46
-#define DISPLAY_SPI_CS_PIN      10
-#define DISPLAY_RES             -1  // 和主控共用复位引脚
-#define DISPLAY_BLK             45
-
-// Static pointers for pairing widgets are removed as we use dedicated Screen layers.
+// Display pins now come from config_manager / NVS / Kconfig at runtime.
 
 Display::~Display() {
     if (panel_) {
@@ -83,19 +75,19 @@ void Display::my_disp_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, l
 
 // ─── 驱动初始化与 LVGL 核心注册 ───────────────────────────────────────────
 
-bool Display::init(int sda, int scl, int reset) {
+bool Display::init(const DisplayPins &p) {
     ESP_LOGI(TAG, "Initializing ILI9341 SPI LCD...");
 
     gpio_config_t bk_gpio_config = {};
     bk_gpio_config.mode = GPIO_MODE_OUTPUT;
-    bk_gpio_config.pin_bit_mask = 1ULL << DISPLAY_BLK;
+    bk_gpio_config.pin_bit_mask = 1ULL << p.blk;
     gpio_config(&bk_gpio_config);
-    gpio_set_level((gpio_num_t)DISPLAY_BLK, 1);
+    gpio_set_level((gpio_num_t)p.blk, 1);
 
     spi_bus_config_t buscfg = {};
-    buscfg.mosi_io_num = DISPLAY_SPI_MOSI_PIN;
-    buscfg.miso_io_num = DISPLAY_SPI_MISO_PIN;
-    buscfg.sclk_io_num = DISPLAY_SPI_SCK_PIN;
+    buscfg.mosi_io_num = p.mosi;
+    buscfg.miso_io_num = p.miso;
+    buscfg.sclk_io_num = p.sck;
     buscfg.quadwp_io_num = -1;
     buscfg.quadhd_io_num = -1;
     buscfg.max_transfer_sz = SCREEN_W * SCREEN_H * sizeof(uint16_t);
@@ -109,8 +101,8 @@ bool Display::init(int sda, int scl, int reset) {
     lv_disp_drv_init(&disp_drv);
 
     esp_lcd_panel_io_spi_config_t io_config = {};
-    io_config.cs_gpio_num = DISPLAY_SPI_CS_PIN;
-    io_config.dc_gpio_num = DISPLAY_DC_PIN;
+    io_config.cs_gpio_num = p.cs;
+    io_config.dc_gpio_num = p.dc;
     io_config.spi_mode = 0; // ILI9341 SPI MODE 0
     io_config.pclk_hz = 40 * 1000 * 1000; // ILI9341 SPI 降至 40MHz 确保极致电气传输稳定
     io_config.trans_queue_depth = 10;
@@ -124,7 +116,7 @@ bool Display::init(int sda, int scl, int reset) {
     }
 
     esp_lcd_panel_dev_config_t panel_config = {};
-    panel_config.reset_gpio_num = DISPLAY_RES;
+    panel_config.reset_gpio_num = p.rst;
     panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR; // ILI9341 BGR 色序
     panel_config.bits_per_pixel = 16;
     ret = esp_lcd_new_panel_ili9341(panel_io_, &panel_config, &panel_);
