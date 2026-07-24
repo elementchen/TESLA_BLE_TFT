@@ -3,8 +3,8 @@
 ## 硬件
 - ESP32-S3 (芯片版本 v0.2, Flash 2MB, PSRAM 8MB)
 - OLED: SSD1306 I2C, 128x32, SDA=GPIO41, SCL=GPIO42, addr=0x3C
-- VIN: YOUR_TESLA_VIN_HERE
-- Tesla BLE 名称: Sa7785a96101d0c3fC (SHA1 前8字节)
+- VIN: 通过 USB 配置工具写入 NVS（编译默认: YOUR_TESLA_VIN_HERE）
+- Tesla BLE 名称: S + SHA1(VIN)[:16] + C（运行时从 VIN 计算）
 
 ## 开发环境
 - ESP-IDF v5.5.4 (需安装到 C:\Espressif\ 或 macOS 等效路径)
@@ -53,7 +53,7 @@ idf.py -p /dev/cu.usbmodem* monitor
 
 ## 当前状态
 - 编译通过，bin 大小 ~700KB
-- BLE 扫描正常：能找到 Sa7785a96101d0c3fC
+- BLE 扫描正常：能通过 VIN 派生的 BLE 设备名找到车辆
 - BLE 连接：靠近车辆时能连接成功 (已确认)
 - 服务发现：加了 MTU 交换 + 延迟后待验证
 - 配对流程：连接后自动检测密钥有效性，无效则清除重配

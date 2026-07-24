@@ -69,7 +69,7 @@ while (true) {
 * **注意**：遗漏 `ble_adapter->process()` 会导致卡在 `DISCOVER` 状态；遗漏 `vehicle->loop()` 会导致实车 Session 同步卡死在转圈界面。
 
 ### 🔑 Key Point 2: 基于 VIN 的蓝牙广播过滤机制
-* 车机蓝牙设备名基于车辆 17位 VIN 的 SHA1 计算：`Sa7785a96101d0c3fC`。
+* 车机蓝牙设备名基于车辆 17位 VIN 的 SHA1 计算：格式为 `S` + SHA1(VIN)前8字节hex + 后缀(`C`/`D`/`R`/`P`)。
 * `ble_adapter.cpp` 严格基于基于设备名匹配，**绝不引入基于 Service UUID 的模糊匹配**，以防在复杂停车场多车并发场景下误连邻车。
 
 ### 🔑 Key Point 3: 自动擦除废旧秘钥防死锁机制
