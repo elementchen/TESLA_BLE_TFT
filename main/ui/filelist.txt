@@ -16,6 +16,9 @@ images/ui_img_keycard_titlecn_png.c
 images/ui_img_sync_5_backlight_png.c
 images/ui_img_sync_5_png.c
 images/ui_img_loading_png.c
+images/ui_img_power_save_line_png.c
+images/ui_img_power_save_green_png.c
+images/ui_img_power_save_red_png.c
 images/ui_img_fsd_png.c
 images/ui_img_car1_png.c
 images/ui_img_charger_power_png.c

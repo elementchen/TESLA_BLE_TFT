@@ -149,29 +149,6 @@ bool Display::init(const DisplayPins &p) {
     // 一键构建并加载 SquareLine UI 模块
     ui_init();
 
-    // 还原进度条显示：高保真设为设计稿原装 2 像素高度，彻底清除边框、外轮廓、阴影和内边距，保持极致清爽
-    if (ui_Power_Save_Bar) {
-        lv_obj_set_height(ui_Power_Save_Bar, 2);
-        
-        lv_obj_set_style_radius(ui_Power_Save_Bar, 0, LV_PART_MAIN);
-        lv_obj_set_style_radius(ui_Power_Save_Bar, 0, LV_PART_INDICATOR);
-        
-        lv_obj_set_style_border_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
-        lv_obj_set_style_border_width(ui_Power_Save_Bar, 0, LV_PART_INDICATOR);
-        
-        lv_obj_set_style_outline_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
-        lv_obj_set_style_outline_width(ui_Power_Save_Bar, 0, LV_PART_INDICATOR);
-        
-        lv_obj_set_style_shadow_width(ui_Power_Save_Bar, 0, LV_PART_MAIN);
-        lv_obj_set_style_shadow_width(ui_Power_Save_Bar, 0, LV_PART_INDICATOR);
-        
-        lv_obj_set_style_pad_all(ui_Power_Save_Bar, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(ui_Power_Save_Bar, 0, LV_PART_INDICATOR);
-
-        // 强行把进度条挪至 Z 轴最顶层，防止被时速等其他同级控件的半透明区域遮挡
-        lv_obj_move_foreground(ui_Power_Save_Bar);
-    }
-
     // 强力硬裁剪时速大字体的包围盒物理越界：限制时速容器所有子对象超出边界的渲染，封杀下沿像素渗漏
     if (ui_Speed) {
         lv_obj_set_style_clip_corner(ui_Speed, true, 0);
@@ -454,34 +431,35 @@ void Display::render_dashboard(const DashData &data) {
         }
     }
 
-    if (ui_Power_Save_Bar) {
-        int power_val = (int)std::round(data.motor_power_kw);
-        if (power_val < -100) power_val = -100;
-        if (power_val > 100) power_val = 100;
+    // 动能回收/消耗视觉指示 — 用图片透明度替代旧进度条
+    // positive motor_power_kw = 消耗 → red overlay; negative = 回收 → green overlay
+    if (ui_power_save_red || ui_power_save_green) {
+        float power = data.motor_power_kw;
+        constexpr float kMaxPower = 100.0f;  // 100kW = 完全不透明
 
-        int cur_val = lv_bar_get_value(ui_Power_Save_Bar);
-        int cur_start = lv_bar_get_start_value(ui_Power_Save_Bar);
-
-        static int last_color_mode = -1; // -1: 初始化未知, 0: 回收(绿色), 1: 消耗(红色)
-        int target_mode = (power_val >= 0) ? 1 : 0;
-
-        if (power_val >= 0) {
-            if (cur_start != 0 || cur_val != power_val) {
-                lv_bar_set_start_value(ui_Power_Save_Bar, 0, LV_ANIM_OFF);
-                lv_bar_set_value(ui_Power_Save_Bar, power_val, LV_ANIM_OFF);
+        if (power >= 0) {
+            // 消耗：显示红色，绿色隐藏
+            int opacity = (int)((power / kMaxPower) * 255.0f);
+            if (opacity > 255) opacity = 255;
+            if (opacity < 0)   opacity = 0;
+            if (ui_power_save_red) {
+                lv_obj_clear_flag(ui_power_save_red, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_set_style_img_opa(ui_power_save_red, (lv_opa_t)opacity, LV_PART_MAIN);
             }
-            if (last_color_mode != target_mode) {
-                last_color_mode = target_mode;
-                lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0xFF0000), LV_PART_INDICATOR | LV_STATE_DEFAULT); // 能耗指示为红色
+            if (ui_power_save_green) {
+                lv_obj_add_flag(ui_power_save_green, LV_OBJ_FLAG_HIDDEN);
             }
         } else {
-            if (cur_start != power_val || cur_val != 0) {
-                lv_bar_set_start_value(ui_Power_Save_Bar, power_val, LV_ANIM_OFF);
-                lv_bar_set_value(ui_Power_Save_Bar, 0, LV_ANIM_OFF);
+            // 回收：显示绿色，红色隐藏
+            int opacity = (int)((-power / kMaxPower) * 255.0f);
+            if (opacity > 255) opacity = 255;
+            if (opacity < 0)   opacity = 0;
+            if (ui_power_save_green) {
+                lv_obj_clear_flag(ui_power_save_green, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_set_style_img_opa(ui_power_save_green, (lv_opa_t)opacity, LV_PART_MAIN);
             }
-            if (last_color_mode != target_mode) {
-                last_color_mode = target_mode;
-                lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0x00BA11), LV_PART_INDICATOR | LV_STATE_DEFAULT); // 动能回收指示为绿色
+            if (ui_power_save_red) {
+                lv_obj_add_flag(ui_power_save_red, LV_OBJ_FLAG_HIDDEN);
             }
         }
     }

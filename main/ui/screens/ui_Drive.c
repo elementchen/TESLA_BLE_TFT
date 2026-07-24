@@ -6,6 +6,9 @@
 #include "../ui.h"
 
 lv_obj_t * ui_Drive = NULL;
+lv_obj_t * ui_power_save_line = NULL;
+lv_obj_t * ui_power_save_green = NULL;
+lv_obj_t * ui_power_save_red = NULL;
 lv_obj_t * ui_Speed = NULL;
 lv_obj_t * ui_Speed_Label = NULL;
 lv_obj_t * ui_Speed_Unit = NULL;
@@ -20,8 +23,16 @@ lv_obj_t * ui_Tire_left_back = NULL;
 lv_obj_t * ui_Temperature = NULL;
 lv_obj_t * ui_Inside_Temp = NULL;
 lv_obj_t * ui_Outside_Temp = NULL;
-lv_obj_t * ui_Power_Save_Bar = NULL;
 // event funtions
+void ui_event_Drive(lv_event_t * e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+
+    if(event_code == LV_EVENT_SCREEN_LOADED) {
+        _ui_opacity_set(ui_power_save_green, 0);
+        _ui_opacity_set(ui_power_save_red, 40);
+    }
+}
 
 // build funtions
 
@@ -31,6 +42,36 @@ void ui_Drive_screen_init(void)
     lv_obj_clear_flag(ui_Drive, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
     lv_obj_set_style_bg_color(ui_Drive, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Drive, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_power_save_line = lv_img_create(ui_Drive);
+    lv_img_set_src(ui_power_save_line, &ui_img_power_save_line_png);
+    lv_obj_set_width(ui_power_save_line, LV_SIZE_CONTENT);   /// 320
+    lv_obj_set_height(ui_power_save_line, LV_SIZE_CONTENT);    /// 10
+    lv_obj_set_x(ui_power_save_line, 0);
+    lv_obj_set_y(ui_power_save_line, 26);
+    lv_obj_set_align(ui_power_save_line, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_power_save_line, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_power_save_line, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+
+    ui_power_save_green = lv_img_create(ui_Drive);
+    lv_img_set_src(ui_power_save_green, &ui_img_power_save_green_png);
+    lv_obj_set_width(ui_power_save_green, LV_SIZE_CONTENT);   /// 320
+    lv_obj_set_height(ui_power_save_green, LV_SIZE_CONTENT);    /// 95
+    lv_obj_set_x(ui_power_save_green, 4);
+    lv_obj_set_y(ui_power_save_green, 70);
+    lv_obj_set_align(ui_power_save_green, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_power_save_green, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_power_save_green, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+
+    ui_power_save_red = lv_img_create(ui_Drive);
+    lv_img_set_src(ui_power_save_red, &ui_img_power_save_red_png);
+    lv_obj_set_width(ui_power_save_red, LV_SIZE_CONTENT);   /// 320
+    lv_obj_set_height(ui_power_save_red, LV_SIZE_CONTENT);    /// 95
+    lv_obj_set_x(ui_power_save_red, 1);
+    lv_obj_set_y(ui_power_save_red, -18);
+    lv_obj_set_align(ui_power_save_red, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_power_save_red, LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_power_save_red, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
     ui_Speed = lv_obj_create(ui_Drive);
     lv_obj_remove_style_all(ui_Speed);
@@ -57,7 +98,7 @@ void ui_Drive_screen_init(void)
     lv_obj_set_y(ui_Speed_Unit, 52);
     lv_obj_set_align(ui_Speed_Unit, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Speed_Unit, "KM/H");
-    lv_obj_set_style_text_color(ui_Speed_Unit, lv_color_hex(0x808080), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui_Speed_Unit, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Speed_Unit, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_FSD_icon = lv_img_create(ui_Drive);
@@ -67,7 +108,7 @@ void ui_Drive_screen_init(void)
     lv_obj_set_x(ui_FSD_icon, 0);
     lv_obj_set_y(ui_FSD_icon, 91);
     lv_obj_set_align(ui_FSD_icon, LV_ALIGN_CENTER);
-    lv_obj_add_flag(ui_FSD_icon, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_add_flag(ui_FSD_icon, LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
     lv_obj_clear_flag(ui_FSD_icon, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
     ui_Cargear = ui_Cargear_create(ui_Drive);
@@ -168,21 +209,7 @@ void ui_Drive_screen_init(void)
     lv_obj_set_style_text_opa(ui_Outside_Temp, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_Outside_Temp, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_Power_Save_Bar = lv_bar_create(ui_Drive);
-    lv_bar_set_mode(ui_Power_Save_Bar, LV_BAR_MODE_RANGE);
-    lv_bar_set_range(ui_Power_Save_Bar, -100, 100);
-    lv_bar_set_value(ui_Power_Save_Bar, 25, LV_ANIM_OFF);
-    lv_bar_set_start_value(ui_Power_Save_Bar, 0, LV_ANIM_OFF);
-    lv_obj_set_width(ui_Power_Save_Bar, 302);
-    lv_obj_set_height(ui_Power_Save_Bar, 2);
-    lv_obj_set_x(ui_Power_Save_Bar, 0);
-    lv_obj_set_y(ui_Power_Save_Bar, 62);
-    lv_obj_set_align(ui_Power_Save_Bar, LV_ALIGN_CENTER);
-    lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0x4F4F4F), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_Power_Save_Bar, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    lv_obj_set_style_bg_color(ui_Power_Save_Bar, lv_color_hex(0x00BA11), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_Power_Save_Bar, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_add_event_cb(ui_Drive, ui_event_Drive, LV_EVENT_ALL, NULL);
 
 }
 
@@ -192,6 +219,9 @@ void ui_Drive_screen_destroy(void)
 
     // NULL screen variables
     ui_Drive = NULL;
+    ui_power_save_line = NULL;
+    ui_power_save_green = NULL;
+    ui_power_save_red = NULL;
     ui_Speed = NULL;
     ui_Speed_Label = NULL;
     ui_Speed_Unit = NULL;
@@ -206,6 +236,5 @@ void ui_Drive_screen_destroy(void)
     ui_Temperature = NULL;
     ui_Inside_Temp = NULL;
     ui_Outside_Temp = NULL;
-    ui_Power_Save_Bar = NULL;
 
 }
