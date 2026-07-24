@@ -24,15 +24,6 @@ lv_obj_t * ui_Temperature = NULL;
 lv_obj_t * ui_Inside_Temp = NULL;
 lv_obj_t * ui_Outside_Temp = NULL;
 // event funtions
-void ui_event_Drive(lv_event_t * e)
-{
-    lv_event_code_t event_code = lv_event_get_code(e);
-
-    if(event_code == LV_EVENT_SCREEN_LOADED) {
-        _ui_opacity_set(ui_power_save_green, 0);
-        _ui_opacity_set(ui_power_save_red, 40);
-    }
-}
 
 // build funtions
 
@@ -209,7 +200,6 @@ void ui_Drive_screen_init(void)
     lv_obj_set_style_text_opa(ui_Outside_Temp, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_Outside_Temp, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    lv_obj_add_event_cb(ui_Drive, ui_event_Drive, LV_EVENT_ALL, NULL);
 
 }
 
