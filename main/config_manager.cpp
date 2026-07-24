@@ -93,14 +93,17 @@ void config_manager_init() {
     // Load NVS config (or use compile-time defaults)
     load_from_nvs();
 
-    // VIN fallback chain: NVS → Kconfig → hardcoded
+    // VIN fallback chain: NVS → Kconfig
     if (g_vin.empty()) {
 #ifdef CONFIG_TESLA_DASH_VIN
         g_vin = CONFIG_TESLA_DASH_VIN;
-#else
-        g_vin = "LRWYGCFS2PC792568";
 #endif
-        ESP_LOGI(TAG, "Using default VIN=%s", g_vin.c_str());
+        if (g_vin.empty() || g_vin == "YOUR_TESLA_VIN_HERE") {
+            ESP_LOGW(TAG, "No VIN configured! Use USB config tool: SET VIN=<17 chars>");
+            g_vin = "";
+        } else {
+            ESP_LOGI(TAG, "Using Kconfig VIN=%s", g_vin.c_str());
+        }
     }
 
     ESP_LOGI(TAG, "Config ready.  Send 'HELP' over serial for commands.");
