@@ -12,7 +12,6 @@ extern "C" {
 
 #include "lvgl.h"
 
-// 兼容映射：sdkconfig 仅启用 Montserrat 14/24，未启用的字号回退
 #ifndef lv_font_montserrat_12
 #define lv_font_montserrat_12 lv_font_montserrat_14
 #endif
@@ -58,6 +57,9 @@ LV_IMG_DECLARE(ui_img_keycard_titlecn_png);    // assets/KeyCard_titleCN.png
 LV_IMG_DECLARE(ui_img_sync_5_backlight_png);    // assets/sync_5_backlight.png
 LV_IMG_DECLARE(ui_img_sync_5_png);    // assets/sync_5.png
 LV_IMG_DECLARE(ui_img_loading_png);    // assets/loading.png
+LV_IMG_DECLARE(ui_img_power_save_line_png);    // assets/power_save_line.png
+LV_IMG_DECLARE(ui_img_power_save_green_png);    // assets/power_save_green.png
+LV_IMG_DECLARE(ui_img_power_save_red_png);    // assets/power_save_red.png
 LV_IMG_DECLARE(ui_img_fsd_png);    // assets/FSD.png
 LV_IMG_DECLARE(ui_img_car1_png);    // assets/car1.png
 LV_IMG_DECLARE(ui_img_charger_power_png);    // assets/charger_power.png
