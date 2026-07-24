@@ -77,6 +77,7 @@ void ui_Drive_screen_init(void)
     lv_obj_set_width(ui_Speed_Label, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Speed_Label, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_align(ui_Speed_Label, LV_ALIGN_CENTER);
+    lv_obj_set_y(ui_Speed_Label, -6);  // pull up from power_save_line
     lv_label_set_text(ui_Speed_Label, "56");
     lv_obj_set_style_text_color(ui_Speed_Label, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Speed_Label, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
