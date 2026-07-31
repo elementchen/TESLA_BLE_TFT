@@ -228,9 +228,9 @@ static void init_tesla_ble() {
         []() { if (vehicle) vehicle->charge_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
     scheduler.register_poll("vcsec",    PollPriority::MEDIUM, 5000,   0, 5000, 2000,
         []() { if (vehicle) vehicle->vcsec_poll(); });
-    scheduler.register_poll("climate",  PollPriority::LOW,   300000,   0,    0,    0,
+    scheduler.register_poll("climate",  PollPriority::LOW,   900000,   0,    0,    0,
         []() { if (vehicle) vehicle->climate_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
-    scheduler.register_poll("tpms",     PollPriority::BACKGROUND, 900000, 0, 0, 0,
+    scheduler.register_poll("tpms",     PollPriority::BACKGROUND, 300000, 0, 0, 0,
         []() { if (vehicle) vehicle->tire_pressure_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
 
     // 初始模式 — 必须在注册后显式调用以启用对应 slot
@@ -256,6 +256,10 @@ static void lvgl_tick_timer_cb(void *arg) {
 
 extern "C" void app_main() {
     ESP_LOGI(TAG, "=== Tesla BLE Dashboard v2.0 ===");
+
+    // 初始化 USB Serial JTAG 驱动（非阻塞读取配置命令）
+    usb_serial_jtag_driver_config_t usb_cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+    usb_serial_jtag_driver_install(&usb_cfg);
 
     config_manager_init();
     init_display();
@@ -350,6 +354,31 @@ extern "C" void app_main() {
                 if (new_mode == DashMode::DRIVING) {
                     bool need_doors = (current_data.gear == 'P');
                     scheduler.set_slot_enabled("closures", need_doors);
+
+                    // TPMS: 仅前2次读取（首次+5分钟后一次），之后停至下次P档
+                    // 减少蓝牙负载，避免干扰车机-轮胎传感器通信
+                    static int tpms_polls_since_park = 0;
+                    static char last_gear_tpms = 'P';
+                    if (current_data.gear == 'P') {
+                        tpms_polls_since_park = 0;
+                        scheduler.set_slot_enabled("tpms", true);
+                    } else if (current_data.gear != last_gear_tpms) {
+                        // 刚离开P档（开始驾驶），允许前2次
+                        tpms_polls_since_park = 0;
+                        scheduler.set_slot_enabled("tpms", true);
+                    } else {
+                        // 行驶中：跟踪已轮询次数
+                        static uint32_t last_tpms_tick_count = 0;
+                        if (last_tpms_tick != last_tpms_tick_count) {
+                            last_tpms_tick_count = last_tpms_tick;
+                            tpms_polls_since_park++;
+                            if (tpms_polls_since_park >= 2) {
+                                scheduler.set_slot_enabled("tpms", false);
+                                ESP_LOGI(TAG, "TPMS: 2 polls done, disabled until next P");
+                            }
+                        }
+                    }
+                    last_gear_tpms = current_data.gear;
                 }
 
                 size_t qdepth = vehicle->get_command_queue_depth();
