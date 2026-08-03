@@ -39,6 +39,9 @@ static std::shared_ptr<StorageAdapterImpl> storage_adapter;
 static std::shared_ptr<TeslaBLE::Vehicle>  vehicle;
 static PollScheduler                       scheduler;
 
+// TPMS fault-triggered quiet mode
+static bool tpms_fault_detected = false;
+
 DashData           pending_data;
 std::atomic<bool>  pending_data_ready{false};
 
@@ -158,6 +161,19 @@ static void on_tire_pressure(const CarServer_TirePressureState &tp) {
         pending_data.tpms_rl = tp.optional_tpms_pressure_rl.tpms_pressure_rl;
     if (tp.which_optional_tpms_pressure_rr)
         pending_data.tpms_rr = tp.optional_tpms_pressure_rr.tpms_pressure_rr;
+
+    // Detect TPMS sensor communication faults (car can't read sensors)
+    bool any_warning = false;
+    if (tp.which_optional_tpms_soft_warning_fl && tp.optional_tpms_soft_warning_fl.tpms_soft_warning_fl) any_warning = true;
+    if (tp.which_optional_tpms_soft_warning_fr && tp.optional_tpms_soft_warning_fr.tpms_soft_warning_fr) any_warning = true;
+    if (tp.which_optional_tpms_soft_warning_rl && tp.optional_tpms_soft_warning_rl.tpms_soft_warning_rl) any_warning = true;
+    if (tp.which_optional_tpms_soft_warning_rr && tp.optional_tpms_soft_warning_rr.tpms_soft_warning_rr) any_warning = true;
+    if (tp.which_optional_tpms_hard_warning_fl && tp.optional_tpms_hard_warning_fl.tpms_hard_warning_fl) any_warning = true;
+    if (tp.which_optional_tpms_hard_warning_fr && tp.optional_tpms_hard_warning_fr.tpms_hard_warning_fr) any_warning = true;
+    if (tp.which_optional_tpms_hard_warning_rl && tp.optional_tpms_hard_warning_rl.tpms_hard_warning_rl) any_warning = true;
+    if (tp.which_optional_tpms_hard_warning_rr && tp.optional_tpms_hard_warning_rr.tpms_hard_warning_rr) any_warning = true;
+    if (any_warning) tpms_fault_detected = true;
+
     pending_data_ready.store(true, std::memory_order_release);
     last_tpms_tick = xTaskGetTickCount();
 }
@@ -354,8 +370,8 @@ extern "C" void app_main() {
                 {
                     static uint32_t quiet_phase_start = 0;
                     static bool in_quiet = false;
-                    constexpr uint32_t QUIET_CYCLE_MS = 25000;
-                    constexpr uint32_t QUIET_WINDOW_MS = 3000;
+                    constexpr uint32_t QUIET_CYCLE_MS = 10000;  // aligned with TPMS 10s wake cycle
+                    constexpr uint32_t QUIET_WINDOW_MS = 1000;
                     uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
                     if (!in_quiet) {
@@ -370,6 +386,25 @@ extern "C" void app_main() {
                             quiet_phase_start = now;
                             scheduler.set_quiet(false);
                         }
+                    }
+                }
+
+                // ─── 触发式静默：检测到 TPMS warning → 临时扩窗 ───
+                {
+                    static uint32_t reactive_quiet_until = 0;
+                    static uint32_t reactive_cooldown_until = 0;
+                    uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
+
+                    if (tpms_fault_detected && now > reactive_cooldown_until) {
+                        tpms_fault_detected = false;
+                        reactive_quiet_until = now + 5000;        // 5s emergency window
+                        reactive_cooldown_until = now + 30000;    // don't re-trigger for 30s
+                        scheduler.set_quiet(true);
+                        ESP_LOGW(TAG, "TPMS fault detected — 5s quiet window");
+                    }
+                    if (reactive_quiet_until && now > reactive_quiet_until) {
+                        reactive_quiet_until = 0;
+                        scheduler.set_quiet(false);
                     }
                 }
 
