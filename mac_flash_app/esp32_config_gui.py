@@ -17,12 +17,11 @@ PRESETS = {
     "ESP32-S3 ST7789 / ST7789T3": {
         "model": "ST7789",
         "pins":  ["12","11","13","46","10","-1","45"],
-        "note":  "ST7789T3 is same driver, firmware uses ST7789"
     },
 }
+CUSTOM_LABEL = "Custom Board"
 BAUD = 115200
 
-# ── Pin aliases ──────────────────────────────────────────────
 PIN_NAMES = [
     ("SCK",  "SCL / CLK"),
     ("MOSI", "SDA / SDI / DATA"),
@@ -76,11 +75,10 @@ class ESP32Config:
                 info["pins"] = [p.split("=")[1] for p in parts.split() if "=" in p]
         return info
     def cmd(self, c):  return self._send(c)
-    def save(self):    return self._send("SAVE")
-    def reboot(self):  self._send("SAVE"); time.sleep(0.3); self._send("REBOOT", wait=0.3)
+    def reboot(self):
+        self._send("SAVE"); time.sleep(0.3); self._send("REBOOT", wait=0.3)
 
 
-# ── macOS-compatible dark button (Label-based, bg color works) ─
 def DarkButton(parent, text, command, bg="#333", fg="#ddd",
                font=("Helvetica", 10), padx=14, enabled=True):
     lbl = tk.Label(parent, text=text, bg=bg, fg=fg, font=font,
@@ -91,210 +89,193 @@ def DarkButton(parent, text, command, bg="#333", fg="#ddd",
         lbl.bind("<Leave>", lambda e: lbl.configure(bg=bg))
     else:
         lbl.configure(fg="#444", cursor="arrow")
-    lbl._bg = bg
-    lbl._enabled = enabled
+    lbl._bg = bg; lbl._enabled = enabled
     return lbl
 
 
 class App:
     def __init__(self, root):
         root.title("ESP32 Config Tool")
-        root.geometry("740x540")
-        root.minsize(740, 540)
+        root.geometry("760x540"); root.minsize(760, 540)
         root.configure(bg="#1a1a1a")
-        self.esp = ESP32Config()
-        self.connected = False
+        self.esp = ESP32Config(); self.connected = False
 
-        BG   = "#1a1a1a"
-        CARD = "#252525"
-        FG   = "#d4d4d4"
-        ACC  = "#cc2222"
-        GRN  = "#2ea043"
-        BLU  = "#4a90d9"
-        HINT = "#666"
+        BG="#1a1a1a"; CARD="#252525"; FG="#d4d4d4"; ACC="#cc2222"
+        GRN="#2ea043"; BLU="#4a90d9"; HINT="#666"
 
         # ── Top bar ──────────────────────────────────────────
         top = tk.Frame(root, bg=CARD, height=44)
-        top.pack(fill=tk.X, padx=10, pady=(10,0))
-        top.pack_propagate(False)
+        top.pack(fill=tk.X, padx=10, pady=(10,0)); top.pack_propagate(False)
 
         self.led = tk.Canvas(top, width=10, height=10, bg=CARD, highlightthickness=0)
         self.led.place(x=12, y=17); self._led("gray")
 
         self.lbl_status = tk.Label(top, text="Disconnected", fg="#888", bg=CARD, font=("Helvetica", 10))
         self.lbl_status.place(x=30, y=12)
-
         self.lbl_port = tk.Label(top, text="", fg=HINT, bg=CARD, font=("Helvetica", 7))
         self.lbl_port.place(x=30, y=30)
 
         self.btn_conn = DarkButton(top, "Connect", self._toggle)
-        self.btn_conn.place(x=640, y=6)
+        self.btn_conn.place(x=660, y=6)
 
-        # ── Preset ───────────────────────────────────────────
-        pf = tk.Frame(root, bg=CARD)
-        pf.pack(fill=tk.X, padx=10, pady=4)
-        tk.Label(pf, text="Preset:", fg="#aaa", bg=CARD, font=("Helvetica", 10)).pack(
-            side=tk.LEFT, padx=(10,4), pady=6)
-        self.preset_var = tk.StringVar(value=list(PRESETS.keys())[0])
-        cb = ttk.Combobox(pf, textvariable=self.preset_var, values=list(PRESETS.keys()),
-                          state="readonly", width=32, font=("Helvetica", 10))
-        cb.pack(side=tk.LEFT, padx=4, pady=6)
-        DarkButton(pf, "Apply", self._apply_preset, bg=BLU, fg="white").pack(
-            side=tk.LEFT, padx=8, pady=6)
-
-        # ── Fields ───────────────────────────────────────────
-        ff = tk.Frame(root, bg=CARD)
-        ff.pack(fill=tk.BOTH, expand=True, padx=10, pady=4)
-
-        # VIN
-        tk.Label(ff, text="VIN  (17 characters)", fg=FG, bg=CARD,
-                font=("Helvetica", 10, "bold")).place(x=14, y=12)
-        tk.Label(ff, text="Your Tesla vehicle VIN, e.g. 5YJ3E1EA...", fg=HINT, bg=CARD,
-                font=("Helvetica", 7)).place(x=14, y=34)
+        # ── VIN (always editable, top priority) ─────────────
+        vf = tk.Frame(root, bg=CARD)
+        vf.pack(fill=tk.X, padx=10, pady=(8,2))
+        tk.Label(vf, text="VIN  (17 characters, required)", fg=FG, bg=CARD,
+                font=("Helvetica", 11, "bold")).pack(anchor=tk.W, padx=12, pady=(8,0))
         self.vin_var = tk.StringVar()
-        tk.Entry(ff, textvariable=self.vin_var, bg="#111", fg=FG, insertbackground=FG,
-                font=("Helvetica", 12), relief=tk.FLAT, width=24, highlightthickness=0
-                ).place(x=14, y=54)
+        tk.Entry(vf, textvariable=self.vin_var, bg="#111", fg=FG, insertbackground=FG,
+                font=("Helvetica", 13), relief=tk.FLAT, width=28, highlightthickness=0
+                ).pack(anchor=tk.W, padx=12, pady=(2,8))
 
-        # Display model
-        tk.Label(ff, text="Display Driver", fg=FG, bg=CARD,
-                font=("Helvetica", 10, "bold")).place(x=14, y=96)
-        tk.Label(ff, text="e.g. ILI9341, ST7789, GC9A01", fg=HINT, bg=CARD,
-                font=("Helvetica", 7)).place(x=14, y=118)
+        # ── Board preset ─────────────────────────────────────
+        bf = tk.Frame(root, bg=CARD)
+        bf.pack(fill=tk.X, padx=10, pady=2)
+        tk.Label(bf, text="Board", fg=FG, bg=CARD, font=("Helvetica", 11, "bold")).pack(
+            side=tk.LEFT, padx=(12,4), pady=6)
+
+        preset_keys = list(PRESETS.keys()) + [CUSTOM_LABEL]
+        self.board_var = tk.StringVar(value=preset_keys[0])
+        self.board_cb = ttk.Combobox(bf, textvariable=self.board_var, values=preset_keys,
+                                      state="readonly", width=32, font=("Helvetica", 10))
+        self.board_cb.pack(side=tk.LEFT, padx=4, pady=6)
+        self.board_cb.bind("<<ComboboxSelected>>", self._on_board_select)
+
+        # ── Pins panel ───────────────────────────────────────
+        pf = tk.Frame(root, bg=CARD)
+        pf.pack(fill=tk.BOTH, expand=True, padx=10, pady=2)
+
+        tk.Label(pf, text="Display Driver", fg=FG, bg=CARD, font=("Helvetica", 10, "bold")
+                ).place(x=14, y=8)
         self.model_var = tk.StringVar(value="ILI9341")
-        tk.Entry(ff, textvariable=self.model_var, bg="#111", fg=FG, insertbackground=FG,
-                font=("Helvetica", 12), relief=tk.FLAT, width=24, highlightthickness=0
-                ).place(x=14, y=138)
+        self.model_entry = tk.Entry(pf, textvariable=self.model_var, bg="#1a1a1a", fg=FG,
+                                     insertbackground=FG, font=("Helvetica", 12),
+                                     relief=tk.FLAT, width=18, highlightthickness=0)
+        self.model_entry.place(x=14, y=32)
 
-        # SPI Pins — 7 individual boxes
-        tk.Label(ff, text="SPI Pins  (-1 = not connected)", fg=FG, bg=CARD,
-                font=("Helvetica", 10, "bold")).place(x=14, y=184)
-        self.pin_vars = []
+        tk.Label(pf, text="SPI Pins  (-1 = not connected)", fg=FG, bg=CARD,
+                font=("Helvetica", 10, "bold")).place(x=14, y=74)
+
+        self.pin_vars = []; self.pin_entries = []
         defaults = ["12","11","13","46","10","-1","45"]
         for i, (primary, aliases) in enumerate(PIN_NAMES):
-            x = 14 + i * 100
-            tk.Label(ff, text=primary, fg=FG, bg=CARD,
-                    font=("Helvetica", 10, "bold")).place(x=x, y=212)
-            tk.Label(ff, text=aliases, fg=HINT, bg=CARD,
-                    font=("Helvetica", 7)).place(x=x, y=232)
+            x = 14 + i * 102
+            tk.Label(pf, text=primary, fg=FG, bg=CARD, font=("Helvetica", 10, "bold")
+                    ).place(x=x, y=102)
+            tk.Label(pf, text=aliases, fg=HINT, bg=CARD, font=("Helvetica", 7)
+                    ).place(x=x, y=122)
             var = tk.StringVar(value=defaults[i])
             self.pin_vars.append(var)
-            tk.Entry(ff, textvariable=var, bg="#111", fg=FG, insertbackground=FG,
-                    font=("Helvetica", 12), relief=tk.FLAT, width=5,
-                    justify=tk.CENTER, highlightthickness=0).place(x=x, y=252)
+            e = tk.Entry(pf, textvariable=var, bg="#1a1a1a", fg=FG, insertbackground=FG,
+                        font=("Helvetica", 12), relief=tk.FLAT, width=5,
+                        justify=tk.CENTER, highlightthickness=0)
+            e.place(x=x, y=142)
+            self.pin_entries.append(e)
 
         # ── Bottom bar ───────────────────────────────────────
-        bf = tk.Frame(root, bg=CARD, height=56)
-        bf.pack(fill=tk.X, padx=10, pady=(4,10))
-        bf.pack_propagate(False)
-
-        self.btn_read = DarkButton(bf, "Read from ESP32", self._read, enabled=False)
-        self.btn_read.place(x=10, y=8)
+        bbar = tk.Frame(root, bg=CARD, height=56)
+        bbar.pack(fill=tk.X, padx=10, pady=(4,10)); bbar.pack_propagate(False)
 
         self.log_var = tk.StringVar(value="Ready — connect ESP32 to begin")
-        tk.Label(bf, textvariable=self.log_var, fg=HINT, bg=CARD,
-                font=("Helvetica", 7)).place(x=190, y=16)
+        tk.Label(bbar, textvariable=self.log_var, fg=HINT, bg=CARD,
+                font=("Helvetica", 9)).place(x=14, y=18)
 
-        self.btn_save = DarkButton(bf, "Save to ESP32", self._save, bg=GRN, fg="white",
-                                   font=("Helvetica", 10, "bold"), padx=18, enabled=False)
-        self.btn_save.place(x=430, y=8)
-
-        self.btn_reboot = DarkButton(bf, "Save && Reboot", self._reboot, bg=ACC, fg="white",
-                                     font=("Helvetica", 10, "bold"), padx=14, enabled=False)
-        self.btn_reboot.place(x=590, y=8)
+        self.btn_reboot = DarkButton(bbar, "Save & Reboot", self._reboot, bg=ACC, fg="white",
+                                      font=("Helvetica", 12, "bold"), padx=18, enabled=False)
+        self.btn_reboot.place(x=600, y=8)
 
     def _led(self, color):
-        self.led.delete("all")
-        self.led.create_oval(1,1,9,9, fill=color, outline="")
+        self.led.delete("all"); self.led.create_oval(1,1,9,9, fill=color, outline="")
 
-    def _set_btns(self, on):
-        for b in [self.btn_read, self.btn_save, self.btn_reboot]:
-            if on and not b._enabled:
-                b.configure(fg=b._fg if hasattr(b,'_fg') else "#ddd", cursor="hand2")
-                b.bind("<Button-1>", lambda e, cb=b._cb: cb())
-                b.bind("<Enter>", lambda e, lbl=b: lbl.configure(bg="#555"))
-                b.bind("<Leave>", lambda e, lbl=b: lbl.configure(bg=lbl._bg))
-                b._enabled = True
-            elif not on and b._enabled:
-                b.configure(fg="#444", cursor="arrow")
-                b.unbind("<Button-1>")
-                b.unbind("<Enter>")
-                b.unbind("<Leave>")
-                b._enabled = False
+    def _set_locked(self, locked):
+        """Lock/unlock model + pin fields (read-only for presets)."""
+        bg = "#1a1a1a" if not locked else "#1a1a1a"
+        fg = FG if not locked else "#888"
+        state = tk.NORMAL if not locked else "readonly"
+        self.model_entry.configure(bg=bg, fg=fg, state=state)
+        for e in self.pin_entries:
+            e.configure(bg=bg, fg=fg, state=state)
 
-    def _pins_str(self):
-        return ",".join(v.get().strip() for v in self.pin_vars)
+    def _match_preset(self, model, pins):
+        """Return preset name if model+pins match, else None."""
+        for name, p in PRESETS.items():
+            if p["model"].upper() == model.upper() and p["pins"] == pins:
+                return name
+        return None
 
-    def _set_pins_str(self, vals):
-        for i, v in enumerate(vals):
-            if i < len(self.pin_vars): self.pin_vars[i].set(v)
+    def _on_board_select(self, event=None):
+        name = self.board_var.get()
+        if name == CUSTOM_LABEL:
+            self._set_locked(False)
+        elif name in PRESETS:
+            p = PRESETS[name]
+            self.model_var.set(p["model"])
+            for i, v in enumerate(p["pins"]):
+                self.pin_vars[i].set(v)
+            self._set_locked(True)
 
     def _toggle(self):
         if self.connected:
             self.esp.disconnect(); self.connected = False
             self.lbl_status.config(text="Disconnected"); self.lbl_port.config(text="")
             self._led("gray"); self.btn_conn.configure(text="Connect")
-            self._set_btns(False)
-            self.btn_conn._cb = self._toggle
+            self.btn_reboot.configure(fg="#444", cursor="arrow"); self.btn_reboot._enabled = False
         else:
             try:
                 self.esp.connect(); self.connected = True
-                self.lbl_status.config(text="Connected")
-                self.lbl_port.config(text=self.esp.port)
+                self.lbl_status.config(text="Connected"); self.lbl_port.config(text=self.esp.port)
                 self._led("#2ea043"); self.btn_conn.configure(text="Disconnect")
-                self._set_btns(True); self._read()
+                self.btn_reboot.configure(fg="white", cursor="hand2"); self.btn_reboot._enabled = True
+                self._auto_read()
             except Exception as e:
                 messagebox.showerror("Connection Error", str(e))
         self.btn_conn._cb = self._toggle
 
-    def _read(self):
-        if not self.connected: return
+    def _auto_read(self):
+        """Read config from ESP32, auto-detect preset vs custom."""
         try:
             self.log("Reading...")
             info = self.esp.get_status()
-            if info.get("vin"):   self.vin_var.set(info["vin"])
-            if info.get("model"): self.model_var.set(info["model"])
-            if info.get("pins"):  self._set_pins_str(info["pins"])
-            self.log("Config loaded")
+            if info.get("vin"): self.vin_var.set(info["vin"])
+            model = info.get("model", "ILI9341")
+            pins = info.get("pins", ["12","11","13","46","10","-1","45"])
+
+            # Try to match a preset
+            matched = self._match_preset(model, pins)
+            if matched:
+                self.board_var.set(matched)
+                p = PRESETS[matched]
+                self.model_var.set(p["model"])
+                for i, v in enumerate(p["pins"]): self.pin_vars[i].set(v)
+                self._set_locked(True)
+                self.log(f"Detected: {matched}")
+            else:
+                self.board_var.set(CUSTOM_LABEL)
+                self.model_var.set(model)
+                for i, v in enumerate(pins): self.pin_vars[i].set(v)
+                self._set_locked(False)
+                self.log("Custom config detected")
         except Exception as e:
             self.log(f"Error: {e}")
 
-    def _apply_preset(self):
-        name = self.preset_var.get()
-        if name in PRESETS:
-            p = PRESETS[name]
-            self.model_var.set(p["model"])
-            self._set_pins_str(p["pins"])
-            self.log(f"Applied: {name}")
-
-    def _save(self):
-        if not self.connected: return
-        try:
-            vin = self.vin_var.get().strip()
-            if vin and len(vin) != 17:
-                messagebox.showerror("Error", "VIN must be exactly 17 characters"); return
-            if vin: self.esp.cmd(f"SET VIN={vin}")
-            self.esp.cmd(f"SET MODEL={self.model_var.get().strip()}")
-            self.esp.cmd(f"SET PINS={self._pins_str()}")
-            self.esp.save()
-            self.log("Saved to NVS")
-            messagebox.showinfo("Saved", "Configuration written to NVS.")
-        except Exception as e:
-            self.log(f"Error: {e}")
+    def _pins_str(self):
+        return ",".join(v.get().strip() for v in self.pin_vars)
 
     def _reboot(self):
         if not self.connected: return
-        if not messagebox.askyesno("Reboot", "Save config and reboot ESP32?"): return
+        if not messagebox.askyesno("Save & Reboot", "Write config and reboot ESP32?"): return
         try:
             vin = self.vin_var.get().strip()
-            if vin and len(vin) == 17: self.esp.cmd(f"SET VIN={vin}")
+            if not vin or len(vin) != 17:
+                messagebox.showerror("Error", "VIN must be exactly 17 characters"); return
+            self.esp.cmd(f"SET VIN={vin}")
             self.esp.cmd(f"SET MODEL={self.model_var.get().strip()}")
             self.esp.cmd(f"SET PINS={self._pins_str()}")
             self.esp.reboot()
             self.connected = False
             self.lbl_status.config(text="Disconnected"); self.lbl_port.config(text="")
             self._led("gray"); self.btn_conn.configure(text="Connect")
-            self._set_btns(False)
+            self.btn_reboot.configure(fg="#444", cursor="arrow"); self.btn_reboot._enabled = False
             self.log("Rebooting...")
         except Exception as e:
             self.log(f"Error: {e}")
@@ -305,10 +286,7 @@ class App:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    # Store callbacks on buttons
     app = App(root)
-    app.btn_read._cb = app._read
-    app.btn_save._cb = app._save
-    app.btn_reboot._cb = app._reboot
     app.btn_conn._cb = app._toggle
+    app.btn_reboot._cb = app._reboot
     root.mainloop()
