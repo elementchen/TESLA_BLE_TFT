@@ -72,6 +72,9 @@ uint32_t PollScheduler::current_cooldown_ms() const {
 size_t PollScheduler::get_pending_count() const { return 0; }
 
 void PollScheduler::process(uint32_t now_ms, size_t queue_depth, size_t max_queue) {
+    // ── BLE quiet window (TPMS) ─────────────────────────────────
+    if (quiet_) return;
+
     // ── Cooldown ────────────────────────────────────────────────
     uint32_t cooldown = current_cooldown_ms();
     if (last_dispatch_ms_ != 0 && now_ms - last_dispatch_ms_ < cooldown) {

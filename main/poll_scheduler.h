@@ -65,9 +65,13 @@ public:
      */
     void set_mode(DashMode mode);
 
-    /** Dynamically enable/disable a named slot without changing mode.
-     *  Used e.g. to pause closures polling above 10 km/h. */
+    /** Dynamically enable/disable a named slot without changing mode. */
     void set_slot_enabled(const char *name, bool enabled);
+
+    /** Periodic BLE quiet window — pauses all polling to let the vehicle
+     *  communicate with BLE TPMS sensors. */
+    void set_quiet(bool quiet) { quiet_ = quiet; }
+    bool is_quiet() const { return quiet_; }
 
     DashMode get_mode() const { return mode_; }
 
@@ -82,6 +86,7 @@ private:
     std::vector<PollSlot> slots_;
     DashMode mode_ = DashMode::CONNECTING;
     bool mode_initialized_ = false;
+    bool quiet_ = false;  // BLE quiet window for TPMS
     uint32_t last_dispatch_ms_ = 0;
 
     // Cooldown adapts to active poll count: fewer types = faster dispatch

@@ -350,6 +350,29 @@ extern "C" void app_main() {
                     scheduler.set_mode(new_mode);
                 }
 
+                // ─── BLE 静默窗口：每 25s 暂停 3s，给车机留下 TPMS 扫描空档 ───
+                {
+                    static uint32_t quiet_phase_start = 0;
+                    static bool in_quiet = false;
+                    constexpr uint32_t QUIET_CYCLE_MS = 25000;
+                    constexpr uint32_t QUIET_WINDOW_MS = 3000;
+                    uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
+
+                    if (!in_quiet) {
+                        if (quiet_phase_start == 0 || now - quiet_phase_start > QUIET_CYCLE_MS) {
+                            in_quiet = true;
+                            quiet_phase_start = now;
+                            scheduler.set_quiet(true);
+                        }
+                    } else {
+                        if (now - quiet_phase_start > QUIET_WINDOW_MS) {
+                            in_quiet = false;
+                            quiet_phase_start = now;
+                            scheduler.set_quiet(false);
+                        }
+                    }
+                }
+
                 // 仅 P 档检测车门；D/R/N/? 时带宽全给时速/档位
                 if (new_mode == DashMode::DRIVING) {
                     bool need_doors = (current_data.gear == 'P');
