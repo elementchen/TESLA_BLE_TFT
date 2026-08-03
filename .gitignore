@@ -3,6 +3,7 @@
 /build_mac/
 /sdkconfig
 /sdkconfig.old
+/sdkconfig.defaults.old
 
 # ─── IDF managed (auto-downloaded) ────────────────────────
 /managed_components/
