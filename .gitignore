@@ -1,21 +1,38 @@
-# ESP32 Dashboard Main Project gitignore
+# ─── Build artifacts ──────────────────────────────────────
 /build/
+/build_mac/
 /sdkconfig
 /sdkconfig.old
-/sdkconfig.defaults.old
-/dependencies.lock
+
+# ─── IDF managed (auto-downloaded) ────────────────────────
 /managed_components/
+/dependencies.lock
 
-# 设计源文件 (SquareLine Studio)
+# ─── Design source files (SquareLine Studio) ──────────────
 /GUI_design/
-
-# SquareLine 导出测试目录
 /LGVL_TEST/
 
-# 独立的 Windows 仿真端子项目
-/Simulation_app/
-
-# 参考项目
+# ─── Reference projects (not ours) ────────────────────────
 /Reference/
-mac_flash_app/dist/
-mac_flash_app/build/
+
+# ─── Windows-only (newer versions on Windows machine) ─────
+/Simulation_app/
+/windows_flash_app/
+/*.bat
+
+# ─── Temp output ──────────────────────────────────────────
+/release/
+
+# ─── Personal logs ────────────────────────────────────────
+/doc/WCH.txt
+/doc/数据抓取工具的建议.txt
+
+# ─── macOS junk ───────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+
+# ─── IDE / Editor ─────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
