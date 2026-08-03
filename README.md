@@ -16,6 +16,8 @@ ESP32-S3 open-source Tesla digital dashboard. Connects to Tesla Model 3/Y via BL
 
 ## Hardware
 
+![Dev Board](doc/IMG_7255.jpg)
+
 | Component | Spec |
 |-----------|------|
 | MCU | ESP32-S3 (16MB Flash, 8MB PSRAM) |
