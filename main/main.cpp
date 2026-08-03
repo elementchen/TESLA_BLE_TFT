@@ -366,45 +366,47 @@ extern "C" void app_main() {
                     scheduler.set_mode(new_mode);
                 }
 
-                // ─── BLE 静默窗口：每 25s 暂停 3s，给车机留下 TPMS 扫描空档 ───
+                // ─── BLE 静默窗口（TPMS 共存）──────────────────────
+                // 周期性: 1s 静默 / 10s (对齐 Continental BLE TPMS 10s 唤醒周期)
+                // 触发式: 检测到 TPMS warning → 10s 完整周期静默 + 相位重置
                 {
-                    static uint32_t quiet_phase_start = 0;
+                    static uint32_t quiet_phase = 0;
                     static bool in_quiet = false;
-                    constexpr uint32_t QUIET_CYCLE_MS = 10000;  // aligned with TPMS 10s wake cycle
-                    constexpr uint32_t QUIET_WINDOW_MS = 1000;
+                    static uint32_t fault_until = 0;
+                    constexpr uint32_t CYCLE_MS  = 10000;
+                    constexpr uint32_t WINDOW_MS = 1000;
+                    constexpr uint32_t FAULT_MS  = 10000;
                     uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
-                    if (!in_quiet) {
-                        if (quiet_phase_start == 0 || now - quiet_phase_start > QUIET_CYCLE_MS) {
-                            in_quiet = true;
-                            quiet_phase_start = now;
-                            scheduler.set_quiet(true);
-                        }
-                    } else {
-                        if (now - quiet_phase_start > QUIET_WINDOW_MS) {
-                            in_quiet = false;
-                            quiet_phase_start = now;
-                            scheduler.set_quiet(false);
-                        }
-                    }
-                }
-
-                // ─── 触发式静默：检测到 TPMS warning → 临时扩窗 ───
-                {
-                    static uint32_t reactive_quiet_until = 0;
-                    static uint32_t reactive_cooldown_until = 0;
-                    uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
-
-                    if (tpms_fault_detected && now > reactive_cooldown_until) {
+                    // TPMS warning → full-cycle quiet + phase reset
+                    if (tpms_fault_detected) {
                         tpms_fault_detected = false;
-                        reactive_quiet_until = now + 5000;        // 5s emergency window
-                        reactive_cooldown_until = now + 30000;    // don't re-trigger for 30s
+                        fault_until = now + FAULT_MS;
                         scheduler.set_quiet(true);
-                        ESP_LOGW(TAG, "TPMS fault detected — 5s quiet window");
+                        ESP_LOGW(TAG, "TPMS fault — 10s quiet + phase reset");
                     }
-                    if (reactive_quiet_until && now > reactive_quiet_until) {
-                        reactive_quiet_until = 0;
+                    if (fault_until && now > fault_until) {
+                        fault_until = 0;
                         scheduler.set_quiet(false);
+                        in_quiet = false;
+                        quiet_phase = now;     // phase reset
+                    }
+
+                    // Periodic quiet (suppressed during fault window)
+                    if (!fault_until) {
+                        if (!in_quiet) {
+                            if (quiet_phase == 0 || now - quiet_phase > CYCLE_MS) {
+                                in_quiet = true;
+                                quiet_phase = now;
+                                scheduler.set_quiet(true);
+                            }
+                        } else {
+                            if (now - quiet_phase > WINDOW_MS) {
+                                in_quiet = false;
+                                quiet_phase = now;
+                                scheduler.set_quiet(false);
+                            }
+                        }
                     }
                 }
 

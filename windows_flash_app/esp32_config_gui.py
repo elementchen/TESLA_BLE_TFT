@@ -191,7 +191,7 @@ class App:
         """Lock/unlock model + pin fields (read-only for presets)."""
         bg = "#1a1a1a" if not locked else "#1a1a1a"
         fg = FG if not locked else "#888"
-        state = tk.NORMAL if not locked else "readonly"
+        state = tk.NORMAL if not locked else tk.DISABLED
         self.model_entry.configure(bg=bg, fg=fg, state=state)
         for e in self.pin_entries:
             e.configure(bg=bg, fg=fg, state=state)
