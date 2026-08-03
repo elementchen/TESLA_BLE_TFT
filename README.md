@@ -7,152 +7,67 @@
 <a name="english"></a>
 ## English
 
-ESP32-S3 open-source Tesla digital dashboard. Connects to Tesla Model 3/Y via BLE, renders real-time telemetry on a 320x240 TFT with LVGL.
-
-### Features
-
-- BLE auto-scan, connect, ECDH key authentication
-- Real-time speed, gear, regen/consumption visualization
-- Door monitoring via VCSEC 320ms fast channel
-- Charging status (power, SOC, time remaining)
-- Tire pressure, cabin/outside temperature, battery range
-- Scene-driven polling: Driving / Door Open / Charging modes
-- Keycard pairing on first use, auto-reconnect on reboot
-
-### Hardware
+ESP32-S3 Tesla digital dashboard. Connects to Model 3/Y via BLE, renders real-time telemetry on a 320x240 TFT.
 
 ![Dev Board](doc/IMG_7255.jpg)
 
-| Component | Spec |
-|-----------|------|
-| MCU | ESP32-S3 (16MB Flash, 8MB PSRAM) |
-| Display | ILI9341 / ST7789 SPI TFT (320x240) |
-| Wireless | BLE 4.2+ Central |
+### For Users — No Coding Required
 
-### Quick Start
+**Step 1: Flash**
+1. Download `tesla_ble_dash_vX.X.bin` from [Releases](https://github.com/elementchen/TESLA_BLE_TFT/releases)
+2. Download [Espressif Flash Tool](https://www.espressif.com/en/support/download/other-tools)
+3. Select chip `ESP32-S3`, load the single `.bin` file at address **`0x0000`**
+4. SPI: **80MHz, QIO, 16MB**. Click START.
 
-**Option 1: Flash pre-built binary (recommended)**
+**Step 2: Configure**
+1. Download the config tool from Releases (`ESP32_Config_Tool_macOS.zip` or `.exe`)
+2. Connect ESP32 via USB, pick your display preset, enter your 17-char Tesla VIN
+3. Click **Save & Reboot**
 
-1. Download `tesla_ble_dash.bin` from [Releases](https://github.com/elementchen/TESLA_BLE_TFT/releases)
-2. Download [Espressif Flash Download Tool](https://www.espressif.com/en/support/download/other-tools)
-3. Connect ESP32-S3, select chip `ESP32-S3`, load files at addresses:
+**Step 3: Pair**
+Display shows "TAP CARD" → tap your Tesla keycard on the center console. Done. Auto-reconnects every startup.
 
-| File | Address |
-|------|---------|
-| `bootloader.bin` | `0x0000` |
-| `partition-table.bin` | `0x8000` |
-| `tesla_ble_dash.bin` | `0x20000` |
-
-4. SPI settings: **80MHz, QIO, 16MB Flash**. Click START.
-
-**Option 2: Build from source**
+### For Developers
 
 ```bash
 git clone https://github.com/elementchen/TESLA_BLE_TFT.git
 cd TESLA_BLE_TFT
-idf.py set-target esp32s3
-idf.py build
-idf.py -p /dev/cu.usbmodem* flash
+idf.py set-target esp32s3 && idf.py build && idf.py -p /dev/cu.usbmodem* flash
 ```
+Then configure VIN: `pip install pyserial && python3 mac_flash_app/esp32_config.py set-vin YOUR_VIN save reboot`
 
-### After Flashing — Configure
-
-The firmware needs your **Tesla VIN** and **display pinout**. Use the USB config tool:
-
-| Platform | Command |
-|----------|---------|
-| **macOS GUI** | Download `ESP32_Config_Tool_macOS.zip` from Releases, unzip and double-click |
-| **Windows EXE** | Download `ESP32_Config_Tool.exe` from Releases |
-| **CLI** | `pip install pyserial && python3 mac_flash_app/esp32_config.py set-vin YOUR_VIN` |
-
-Built-in presets for common boards (2.8inch ESP32-S3 ILI9341, ST7789).
-
-### Pairing
-
-After reboot, the display shows "TAP CARD". Tap your Tesla keycard on the center console to authorize. Once paired, the ESP32 reconnects automatically on every startup.
-
-### Credits
-
-- **Tesla BLE Protocol**: [yoziru/tesla-ble](https://github.com/yoziru/tesla-ble) v5.1.1
-- **LVGL**: Embedded GUI framework v8.4
-- **SquareLine Studio**: UI design tool
-- **ESP-IDF**: Espressif IoT Development Framework
-
-### License
-
-MIT
+### Credits · [yoziru/tesla-ble](https://github.com/yoziru/tesla-ble) · LVGL · SquareLine Studio · ESP-IDF · MIT
 
 ---
 
 <a name="中文"></a>
 ## 中文
 
-基于 ESP32-S3 的开源特斯拉数字仪表盘。通过 BLE 连接 Tesla Model 3/Y 获取实时遥测数据，在 320x240 TFT 屏幕上渲染 LVGL 仪表界面。
+基于 ESP32-S3 的开源特斯拉仪表盘，通过 BLE 连接 Model 3/Y，在 320x240 TFT 上显示实时遥测。
 
-### 功能
+### 普通用户 — 无需编程
 
-- 蓝牙自动扫描、连接、ECDH 密钥认证
-- 实时时速、档位、动能回收/能耗可视化
-- 车门开关监测（VCSEC 320ms 快速通道）
-- 充电状态（功率、SOC、剩余时间）
-- 胎压、内外温度、电池续航
-- 场景驱动轮询：驾驶 / 开门 / 充电模式自适应
-- 首次刷卡配对 + 重启自动重连
+**第一步：烧录**
+1. 从 [Releases](https://github.com/elementchen/TESLA_BLE_TFT/releases) 下载 `tesla_ble_dash_vX.X.bin`
+2. 下载 [乐鑫烧录工具](https://www.espressif.com/zh-hans/support/download/other-tools)
+3. 芯片选 `ESP32-S3`，加载 `.bin` 文件到地址 **`0x0000`**
+4. SPI 设置：**80MHz, QIO, 16MB**。点 START。
 
-### 硬件要求
+**第二步：配置**
+1. 从 Releases 下载配置工具（`ESP32_Config_Tool_macOS.zip` 或 `.exe`）
+2. ESP32 用 USB 连接电脑，选择显示屏预设，填入 17 位 VIN
+3. 点击 **Save & Reboot**
 
-| 组件 | 型号 |
-|------|------|
-| 主控 | ESP32-S3 (16MB Flash, 8MB PSRAM) |
-| 屏幕 | ILI9341 / ST7789 SPI TFT (320x240) |
-| 无线 | BLE 4.2+ Central 角色 |
+**第三步：配对**
+屏幕显示 "TAP CARD" → 把特斯拉钥匙卡放在中控台感应区。完成。以后每次开机自动连接。
 
-### 快速开始
-
-**方式一：直接烧录（推荐）**
-
-1. 从 [Releases](https://github.com/elementchen/TESLA_BLE_TFT/releases) 下载 `tesla_ble_dash.bin`
-2. 下载 [乐鑫 Flash 下载工具](https://www.espressif.com/zh-hans/support/download/other-tools)
-3. 连接 ESP32-S3，芯片选 `ESP32-S3`，按地址加载文件：
-
-| 文件 | 地址 |
-|------|------|
-| `bootloader.bin` | `0x0000` |
-| `partition-table.bin` | `0x8000` |
-| `tesla_ble_dash.bin` | `0x20000` |
-
-4. SPI 设置：**80MHz, QIO, 16MB Flash**。点 START 烧录。
-
-**方式二：编译源码**
+### 开发者
 
 ```bash
 git clone https://github.com/elementchen/TESLA_BLE_TFT.git
 cd TESLA_BLE_TFT
-idf.py set-target esp32s3
-idf.py build
-idf.py -p /dev/cu.usbmodem* flash
+idf.py set-target esp32s3 && idf.py build && idf.py -p /dev/cu.usbmodem* flash
 ```
+然后用配置工具写入 VIN：`pip install pyserial && python3 mac_flash_app/esp32_config.py set-vin 你的VIN save reboot`
 
-### 烧录后 — 配置
-
-固件需要你的 **Tesla VIN** 和**显示屏引脚**。使用 USB 配置工具：
-
-| 平台 | 方式 |
-|------|------|
-| **macOS 图形界面** | 从 Releases 下载 `ESP32_Config_Tool_macOS.zip`，解压双击 |
-| **Windows EXE** | 从 Releases 下载 `ESP32_Config_Tool.exe` |
-| **命令行** | `pip install pyserial && python3 mac_flash_app/esp32_config.py set-vin 你的17位VIN码` |
-
-内置常见开发板预设（2.8寸 ESP32-S3 ILI9341、ST7789 等）。
-
-### 配对
-
-重启后屏幕显示 "TAP CARD"。将特斯拉钥匙卡放在中控台感应区完成授权。配对后每次开机自动重连。
-
-### 致谢 / Credits
-
-- [yoziru/tesla-ble](https://github.com/yoziru/tesla-ble) · LVGL · SquareLine Studio · ESP-IDF
-
-### 许可证 / License
-
-MIT
+### 致谢 · [yoziru/tesla-ble](https://github.com/yoziru/tesla-ble) · LVGL · SquareLine Studio · ESP-IDF · MIT

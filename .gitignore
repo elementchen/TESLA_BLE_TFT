@@ -16,9 +16,8 @@
 # ─── Reference projects (not ours) ────────────────────────
 /Reference/
 
-# ─── Windows-only (newer versions on Windows machine) ─────
+# ─── Windows simulator (newer version on Windows machine) ──
 /Simulation_app/
-/windows_flash_app/
 /*.bat
 
 # ─── Temp output ──────────────────────────────────────────
