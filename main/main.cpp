@@ -373,9 +373,9 @@ extern "C" void app_main() {
                     static uint32_t quiet_phase = 0;
                     static bool in_quiet = false;
                     static uint32_t fault_until = 0;
-                    constexpr uint32_t CYCLE_MS  = 10000;
-                    constexpr uint32_t WINDOW_MS = 1000;
-                    constexpr uint32_t FAULT_MS  = 10000;
+                    constexpr uint32_t CYCLE_MS  = 7200;   // 8 polls × 800ms + 800ms quiet
+                    constexpr uint32_t WINDOW_MS = 800;    // one poll slot = 800ms
+                    constexpr uint32_t FAULT_MS  = 10000;  // full TPMS cycle on warning
                     uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
                     // TPMS warning → full-cycle quiet + phase reset
