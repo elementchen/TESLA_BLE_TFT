@@ -366,50 +366,6 @@ extern "C" void app_main() {
                     scheduler.set_mode(new_mode);
                 }
 
-                // ─── BLE 静默窗口（TPMS 共存）──────────────────────
-                // 周期性: 1s 静默 / 10s (对齐 Continental BLE TPMS 10s 唤醒周期)
-                // 触发式: 检测到 TPMS warning → 10s 完整周期静默 + 相位重置
-                {
-                    static uint32_t quiet_phase = 0;
-                    static bool in_quiet = false;
-                    static uint32_t fault_until = 0;
-                    constexpr uint32_t CYCLE_MS  = 7200;   // 8 polls × 800ms + 800ms quiet
-                    constexpr uint32_t WINDOW_MS = 800;    // one poll slot = 800ms
-                    constexpr uint32_t FAULT_MS  = 10000;  // full TPMS cycle on warning
-                    uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
-
-                    // TPMS warning → full-cycle quiet + phase reset
-                    if (tpms_fault_detected) {
-                        tpms_fault_detected = false;
-                        fault_until = now + FAULT_MS;
-                        scheduler.set_quiet(true);
-                        ESP_LOGW(TAG, "TPMS fault — 10s quiet + phase reset");
-                    }
-                    if (fault_until && now > fault_until) {
-                        fault_until = 0;
-                        scheduler.set_quiet(false);
-                        in_quiet = false;
-                        quiet_phase = now;     // phase reset
-                    }
-
-                    // Periodic quiet (suppressed during fault window)
-                    if (!fault_until) {
-                        if (!in_quiet) {
-                            if (quiet_phase == 0 || now - quiet_phase > CYCLE_MS) {
-                                in_quiet = true;
-                                quiet_phase = now;
-                                scheduler.set_quiet(true);
-                            }
-                        } else {
-                            if (now - quiet_phase > WINDOW_MS) {
-                                in_quiet = false;
-                                quiet_phase = now;
-                                scheduler.set_quiet(false);
-                            }
-                        }
-                    }
-                }
-
                 // 仅 P 档检测车门；D/R/N/? 时带宽全给时速/档位
                 if (new_mode == DashMode::DRIVING) {
                     bool need_doors = (current_data.gear == 'P');
