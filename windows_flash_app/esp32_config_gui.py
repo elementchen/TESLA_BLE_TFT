@@ -179,10 +179,14 @@ class App:
 
         # Port selector (manual override for auto-detect)
         self.port_list = []  # [(device, label), ...]
-        self.port_cb = ttk.Combobox(top, state="readonly", width=30,
+        self.port_cb = ttk.Combobox(top, state="readonly", width=27,
                                     font=FONT_SM, postcommand=self._refresh_ports)
-        self.port_cb.place(x=395, y=8)
+        self.port_cb.place(x=380, y=8)
         self._refresh_ports()
+
+        self.btn_refresh = DarkButton(top, "↻", self._refresh_ports,
+                                      font=FONT, padx=8)
+        self.btn_refresh.place(x=588, y=6)
 
         self.btn_conn = DarkButton(top, "Connect", self._toggle)
         self.btn_conn.place(x=660, y=6)
@@ -273,12 +277,20 @@ class App:
         style.configure("TCombobox",
                         fieldbackground="#111", background="#333",
                         foreground=FG, arrowcolor=FG, bordercolor="#333",
-                        selectbackground="#333", selectforeground=FG)
+                        selectbackground="#333", selectforeground=FG,
+                        lightcolor="#333", darkcolor="#333")
         style.map("TCombobox",
                   fieldbackground=[("readonly", "#111")],
                   foreground=[("readonly", FG)],
                   selectbackground=[("readonly", "#333")],
                   selectforeground=[("readonly", FG)])
+        # Popdown list: clam renders it as an internal Listbox; force dark
+        # background with light text so items stay readable
+        root.option_add("*TCombobox*Listbox.background", CARD)
+        root.option_add("*TCombobox*Listbox.foreground", FG)
+        root.option_add("*TCombobox*Listbox.selectBackground", "#3a3a3a")
+        root.option_add("*TCombobox*Listbox.selectForeground", "#ffffff")
+        root.option_add("*TCombobox*Listbox.borderWidth", "1")
 
     def _led(self, color):
         self.led.delete("all")
@@ -293,6 +305,7 @@ class App:
             self.btn_conn.configure(text="Disconnect")
             self.btn_reboot.set_enabled(True)
             self.port_cb.configure(state="disabled")
+            self.btn_refresh.set_enabled(False)
         else:
             self.lbl_status.config(text="Disconnected")
             self.lbl_port.config(text="")
@@ -301,6 +314,7 @@ class App:
             self.btn_reboot.set_enabled(False)
             self._refresh_ports()
             self.port_cb.configure(state="readonly")
+            self.btn_refresh.set_enabled(True)
 
     def _refresh_ports(self):
         """Rescan COM ports; pre-select the ESP32-like one if possible."""
