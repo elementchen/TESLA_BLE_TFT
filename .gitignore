@@ -5,6 +5,12 @@
 /sdkconfig.old
 /sdkconfig.defaults.old
 
+# ─── Config tool build outputs (py2app / PyInstaller) ─────
+/mac_flash_app/build/
+/mac_flash_app/dist/
+/windows_flash_app/build/
+/windows_flash_app/dist/
+
 # ─── IDF managed (auto-downloaded) ────────────────────────
 /managed_components/
 /dependencies.lock

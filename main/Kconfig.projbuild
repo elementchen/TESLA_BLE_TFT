@@ -33,5 +33,6 @@ config TESLA_DASH_VIN
     default "YOUR_TESLA_VIN_HERE"
     help
         Your Tesla vehicle's 17-digit VIN code, used to derive the Bluetooth pairing key schema.
+        Set via menuconfig, or write it to NVS at runtime using the USB config tool.
 
 endmenu
