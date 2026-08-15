@@ -68,6 +68,10 @@ class ESP32Config:
 
     def _find(self):
         ports = list(serial.tools.list_ports.comports())
+        # Espressif native USB (VID 303A) — exact match first
+        for p in ports:
+            if "303A" in (p.hwid or "").upper():
+                return p.device
         for p in ports:
             if any(x in p.description for x in ("CP210", "CH340", "ESP32",
                                                  "USB Serial", "USB-SERIAL", "Silicon Labs")):
@@ -178,10 +182,12 @@ class App:
         self.lbl_port.place(x=30, y=30)
 
         # Port selector (manual override for auto-detect)
-        self.port_list = []  # [(device, label), ...]
+        self.port_list = []  # [(device, label, hwid), ...]
+        self._user_selected_port = False
         self.port_cb = ttk.Combobox(top, state="readonly", width=27,
                                     font=FONT_SM, postcommand=self._refresh_ports)
         self.port_cb.place(x=380, y=8)
+        self.port_cb.bind("<<ComboboxSelected>>", self._on_port_selected)
         self._refresh_ports()
 
         self.btn_refresh = DarkButton(top, "↻", self._refresh_ports,
@@ -316,31 +322,66 @@ class App:
             self.port_cb.configure(state="readonly")
             self.btn_refresh.set_enabled(True)
 
+    # USB VID prefixes for common USB-UART bridge chips
+    CHIP_IDS = [
+        ("303A:1001", "ESP32-S3 (USB-JTAG)"),  # Espressif native USB
+        ("303A", "ESP32 (USB-JTAG)"),
+        ("10C4", "CP210x"),                    # Silicon Labs
+        ("1A86", "CH340"),                     # WCH
+        ("0403", "FTDI"),
+    ]
+    CHIP_PRIORITY = ["ESP32", "CP210", "CH340", "FTDI", "Silicon Labs"]
+
+    def _chip_of(self, hwid):
+        hwid = (hwid or "").upper()
+        for vid, name in self.CHIP_IDS:
+            if vid in hwid:
+                return name
+        return None
+
+    def _port_label(self, p):
+        chip = self._chip_of(p.hwid)
+        desc = (p.description or "").strip()
+        label = p.device
+        if chip:
+            label += f" - {chip}"
+        if desc and desc not in label:
+            label += f" ({desc})"
+        return label
+
+    def _on_port_selected(self, event=None):
+        self._user_selected_port = True
+
     def _refresh_ports(self):
         """Rescan COM ports; pre-select the ESP32-like one if possible."""
         current = self.port_cb.get()
         ports = list(serial.tools.list_ports.comports())
-        self.port_list = [(p.device, f"{p.device} - {p.description}")
+        self.port_list = [(p.device, self._port_label(p), p.hwid or "")
                           for p in ports if "COM" in p.device]
-        labels = [label for _, label in self.port_list]
+        labels = [label for _, label, _ in self.port_list]
+        self.port_cb.configure(values=labels)
 
-        if current in labels:
+        if self._user_selected_port and current in labels:
             self.port_cb.set(current)
         elif labels:
-            # Prefer a port that looks like an ESP32 USB-UART bridge
+            # Prefer ESP32-like ports: USB VID match first, then name hints
             default = 0
-            for i, (device, label) in enumerate(self.port_list):
-                if any(x in label for x in ("CP210", "CH340", "ESP32",
-                                             "USB Serial", "USB-SERIAL", "Silicon Labs")):
+            for i, (_, label, hwid) in enumerate(self.port_list):
+                if self._chip_of(hwid) and self._chip_of(hwid).startswith("ESP32"):
                     default = i
                     break
+            else:
+                for i, (_, label, _) in enumerate(self.port_list):
+                    if any(x in label for x in self.CHIP_PRIORITY):
+                        default = i
+                        break
             self.port_cb.set(labels[default])
         else:
             self.port_cb.set("")
 
     def _selected_port(self):
         label = self.port_cb.get()
-        for device, l in self.port_list:
+        for device, l, _ in self.port_list:
             if l == label:
                 return device
         return None

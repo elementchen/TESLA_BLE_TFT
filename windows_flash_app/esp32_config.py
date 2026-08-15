@@ -49,6 +49,10 @@ TIMEOUT = 2.0
 def find_port():
     """Auto-detect ESP32 serial port on Windows."""
     ports = list(serial.tools.list_ports.comports())
+    # Espressif native USB (VID 303A) — exact match first
+    for p in ports:
+        if "303A" in (p.hwid or "").upper():
+            return p.device
     for p in ports:
         # Windows: COM ports with CP210x or CH340 chips
         if any(x in p.description for x in ("CP210", "CH340", "ESP32", "USB Serial", "USB-SERIAL", "Silicon Labs")):
