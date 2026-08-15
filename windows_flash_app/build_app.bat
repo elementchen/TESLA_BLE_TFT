@@ -1,7 +1,7 @@
 @echo off
-REM Build standalone Windows exe files for ESP32 Config Tool
+REM Build standalone Windows exe for ESP32 Config Tool (GUI, for end users)
 REM Requires: Python 3.10+ with pyserial + pyinstaller
-REM Output: dist\ESP32_Config_Tool.exe (GUI) and dist\esp32_config.exe (CLI)
+REM Output: dist\ESP32_Config_Tool.exe
 
 cd /d "%~dp0"
 
@@ -20,15 +20,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Building CLI exe...
-python -m PyInstaller --noconfirm --clean --onefile --console --name esp32_config esp32_config.py
-if errorlevel 1 (
-    echo Error: CLI build failed
-    exit /b 1
-)
-
 echo.
-echo Done. Output files:
+echo Done. Output file:
 dir /b dist\*.exe
 echo.
-echo To distribute: zip the exe files in dist\ and upload to GitHub Release.
+echo To distribute: zip the exe (plus README.txt) and upload to GitHub Release.
