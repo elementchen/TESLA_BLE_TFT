@@ -177,6 +177,13 @@ class App:
         self.lbl_port = tk.Label(top, text="", fg=HINT, bg=CARD, font=FONT_TINY)
         self.lbl_port.place(x=30, y=30)
 
+        # Port selector (manual override for auto-detect)
+        self.port_list = []  # [(device, label), ...]
+        self.port_cb = ttk.Combobox(top, state="readonly", width=30,
+                                    font=FONT_SM, postcommand=self._refresh_ports)
+        self.port_cb.place(x=395, y=8)
+        self._refresh_ports()
+
         self.btn_conn = DarkButton(top, "Connect", self._toggle)
         self.btn_conn.place(x=660, y=6)
 
@@ -285,12 +292,44 @@ class App:
             self._led(GRN)
             self.btn_conn.configure(text="Disconnect")
             self.btn_reboot.set_enabled(True)
+            self.port_cb.configure(state="disabled")
         else:
             self.lbl_status.config(text="Disconnected")
             self.lbl_port.config(text="")
             self._led("gray")
             self.btn_conn.configure(text="Connect")
             self.btn_reboot.set_enabled(False)
+            self._refresh_ports()
+            self.port_cb.configure(state="readonly")
+
+    def _refresh_ports(self):
+        """Rescan COM ports; pre-select the ESP32-like one if possible."""
+        current = self.port_cb.get()
+        ports = list(serial.tools.list_ports.comports())
+        self.port_list = [(p.device, f"{p.device} - {p.description}")
+                          for p in ports if "COM" in p.device]
+        labels = [label for _, label in self.port_list]
+
+        if current in labels:
+            self.port_cb.set(current)
+        elif labels:
+            # Prefer a port that looks like an ESP32 USB-UART bridge
+            default = 0
+            for i, (device, label) in enumerate(self.port_list):
+                if any(x in label for x in ("CP210", "CH340", "ESP32",
+                                             "USB Serial", "USB-SERIAL", "Silicon Labs")):
+                    default = i
+                    break
+            self.port_cb.set(labels[default])
+        else:
+            self.port_cb.set("")
+
+    def _selected_port(self):
+        label = self.port_cb.get()
+        for device, l in self.port_list:
+            if l == label:
+                return device
+        return None
 
     def _set_locked(self, locked):
         """Lock/unlock model + pin fields (read-only for presets)."""
@@ -325,7 +364,8 @@ class App:
             self._set_connected(False)
         else:
             try:
-                self.esp.connect()
+                self._refresh_ports()
+                self.esp.connect(self._selected_port())
                 self._set_connected(True, self.esp.port)
                 self._auto_read()
             except Exception as e:
