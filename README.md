@@ -9,6 +9,8 @@
 
 ESP32-S3 Tesla digital dashboard. Connects to Model 3/Y via BLE, renders real-time telemetry on a 320x240 TFT.
 
+[2.8inch_ESP32-S3_Display](https://www.lcdwiki.com/zh/2.8inch_ESP32-S3_Display)
+
 ![Dev Board](doc/IMG_7255.jpg)
 
 ### For Users — No Coding Required
@@ -59,6 +61,10 @@ Then configure VIN: `pip install pyserial && python3 mac_flash_app/esp32_config.
 ## 中文
 
 基于 ESP32-S3 的开源特斯拉仪表盘，通过 BLE 连接 Model 3/Y，在 320x240 TFT 上显示实时遥测。
+
+[2.8inch_ESP32-S3_Display](https://www.lcdwiki.com/zh/2.8inch_ESP32-S3_Display)
+
+![Dev Board](doc/IMG_7255.jpg)
 
 ### 普通用户 — 无需编程
 
