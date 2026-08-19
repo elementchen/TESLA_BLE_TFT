@@ -15,11 +15,16 @@ ESP32-S3 Tesla digital dashboard. Connects to Model 3/Y via BLE, renders real-ti
 
 **Step 1: Flash**
 1. Download `tesla_ble_dash_vX.X.bin` from [Releases](https://github.com/elementchen/TESLA_BLE_TFT/releases)
+
 2. Download [Espressif Flash Tool](https://www.espressif.com/en/support/download/other-tools)
+
 3. Select chip `ESP32-S3`, load the single `.bin` file at address **`0x0000`**
 <img width="317" height="296" alt="微信图片_20260819184812_14_341" src="https://github.com/user-attachments/assets/bd95890c-1799-4bb7-821a-25738aaab773" />
+
+
 4. SPI: **80MHz, QIO, 16MB**. Click START.
 <img width="484" height="739" alt="微信图片_20260819184927_15_341" src="https://github.com/user-attachments/assets/3fd67116-cbd4-4bd6-82c6-f787747d65a4" />
+
 
 **Step 2: Configure**
 1. Download the config tool from Releases (`ESP32_Config_Tool_macOS.zip` or `.exe`)
@@ -51,12 +56,18 @@ Then configure VIN: `pip install pyserial && python3 mac_flash_app/esp32_config.
 
 **第一步：烧录**
 1. 从 [Releases](https://github.com/elementchen/TESLA_BLE_TFT/releases) 下载 `tesla_ble_dash_vX.X.bin`
+
 2. 下载 [乐鑫烧录工具](https://www.espressif.com/zh-hans/support/download/other-tools)
+
 3. 芯片选 `ESP32-S3`，加载 `.bin` 文件到地址 **`0x0000`**
 <img width="317" height="296" alt="微信图片_20260819184812_14_341" src="https://github.com/user-attachments/assets/bd95890c-1799-4bb7-821a-25738aaab773" />
 
+
+
 4. SPI 设置：**80MHz, QIO, 16MB**。点 START。
 <img width="484" height="739" alt="微信图片_20260819184927_15_341" src="https://github.com/user-attachments/assets/3fd67116-cbd4-4bd6-82c6-f787747d65a4" />
+
+
 
 
 **第二步：配置**
