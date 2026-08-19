@@ -28,8 +28,14 @@ ESP32-S3 Tesla digital dashboard. Connects to Model 3/Y via BLE, renders real-ti
 
 **Step 2: Configure**
 1. Download the config tool from Releases (`ESP32_Config_Tool_macOS.zip` or `.exe`)
+
 2. Connect ESP32 via USB, pick your display preset, enter your 17-char Tesla VIN
+
+<img width="762" height="572" alt="20260819214346_22_341" src="https://github.com/user-attachments/assets/77ac4687-ac95-4772-b8ad-946296111697" />
+
+
 3. Click **Save & Reboot**
+
 
 **Step 3: Pair**
 Display shows "TAP CARD" → tap your Tesla keycard on the center console. Done. Auto-reconnects every startup.
@@ -72,8 +78,13 @@ Then configure VIN: `pip install pyserial && python3 mac_flash_app/esp32_config.
 
 **第二步：配置**
 1. 从 Releases 下载配置工具（`ESP32_Config_Tool_macOS.zip` 或 `.exe`）
+
 2. ESP32 用 USB 连接电脑，选择显示屏预设，填入 17 位 VIN
+<img width="762" height="572" alt="20260819214346_22_341" src="https://github.com/user-attachments/assets/77ac4687-ac95-4772-b8ad-946296111697" />
+
+
 3. 点击 **Save & Reboot**
+
 
 **第三步：配对**
 屏幕显示 "TAP CARD" → 把特斯拉钥匙卡放在中控台感应区。完成。以后每次开机自动连接。
