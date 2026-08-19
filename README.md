@@ -19,10 +19,12 @@ ESP32-S3 Tesla digital dashboard. Connects to Model 3/Y via BLE, renders real-ti
 2. Download [Espressif Flash Tool](https://www.espressif.com/en/support/download/other-tools)
 
 3. Select chip `ESP32-S3`, load the single `.bin` file at address **`0x0000`**
+
 <img width="317" height="296" alt="微信图片_20260819184812_14_341" src="https://github.com/user-attachments/assets/bd95890c-1799-4bb7-821a-25738aaab773" />
 
 
 4. SPI: **80MHz, QIO, 16MB**. Click START.
+
 <img width="484" height="739" alt="微信图片_20260819184927_15_341" src="https://github.com/user-attachments/assets/3fd67116-cbd4-4bd6-82c6-f787747d65a4" />
 
 
@@ -31,7 +33,7 @@ ESP32-S3 Tesla digital dashboard. Connects to Model 3/Y via BLE, renders real-ti
 
 2. Connect ESP32 via USB, pick your display preset, enter your 17-char Tesla VIN
 
-<img width="762" height="572" alt="20260819214346_22_341" src="https://github.com/user-attachments/assets/77ac4687-ac95-4772-b8ad-946296111697" />
+<img width="762" height="572" alt="20260819214346_22_341" src="https://github.com/user-attachments/assets/ceff965e-d635-4979-ac7a-9614631f5c33" />
 
 
 3. Click **Save & Reboot**
@@ -66,11 +68,13 @@ Then configure VIN: `pip install pyserial && python3 mac_flash_app/esp32_config.
 2. 下载 [乐鑫烧录工具](https://www.espressif.com/zh-hans/support/download/other-tools)
 
 3. 芯片选 `ESP32-S3`，加载 `.bin` 文件到地址 **`0x0000`**
+
 <img width="317" height="296" alt="微信图片_20260819184812_14_341" src="https://github.com/user-attachments/assets/bd95890c-1799-4bb7-821a-25738aaab773" />
 
 
 
 4. SPI 设置：**80MHz, QIO, 16MB**。点 START。
+
 <img width="484" height="739" alt="微信图片_20260819184927_15_341" src="https://github.com/user-attachments/assets/3fd67116-cbd4-4bd6-82c6-f787747d65a4" />
 
 
@@ -80,7 +84,8 @@ Then configure VIN: `pip install pyserial && python3 mac_flash_app/esp32_config.
 1. 从 Releases 下载配置工具（`ESP32_Config_Tool_macOS.zip` 或 `.exe`）
 
 2. ESP32 用 USB 连接电脑，选择显示屏预设，填入 17 位 VIN
-<img width="762" height="572" alt="20260819214346_22_341" src="https://github.com/user-attachments/assets/77ac4687-ac95-4772-b8ad-946296111697" />
+
+<img width="762" height="572" alt="20260819214346_22_341" src="https://github.com/user-attachments/assets/ceff965e-d635-4979-ac7a-9614631f5c33" />
 
 
 3. 点击 **Save & Reboot**
