@@ -61,9 +61,13 @@ void PollScheduler::set_slot_enabled(const char *name, bool enabled) {
 }
 
 uint32_t PollScheduler::current_cooldown_ms() const {
-    // Count active slots to determine dispatch rate
+    // Count *near-term competing* slots to determine dispatch rate.
+    // Long-interval background slots (climate 900s / tpms 300s / charge@P 120s)
+    // almost never fire and must not throttle the fast drive/closures slots.
     int active = 0;
-    for (auto &s : slots_) { if (s.enabled) active++; }
+    for (auto &s : slots_) {
+        if (s.enabled && s.effective_interval > 0 && s.effective_interval <= 10000) active++;
+    }
     if (active <= 1) return 400;   // single-type mode: dispatch aggressively
     if (active <= 2) return 600;   // dual-type mode: balanced
     return 1000;                    // multi-type: slow down

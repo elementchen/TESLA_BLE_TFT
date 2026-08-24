@@ -231,8 +231,8 @@ static void init_tesla_ble() {
     // register_poll(name, priority, DRIVING_ms, DOOR_OPEN_ms, CHARGING_ms, CONNECTING_ms, lambda)
     // 0 = disabled in that mode. 车机每 ~800ms 消化一个命令，所以同时活跃 ≤2 种类型。
 
-    // DRIVING: 仅 drive_state 独占 — 时速/档位/功率零拥堵
-    //   closures 仅 P 档时动态启用（见主循环 set_slot_enabled）
+    // DRIVING (D/R): 仅 drive_state 独占 — 时速/档位/功率零拥堵
+    //   closures/charge 仅 P 档动态启用；vcsec 已禁用（车门交给 closures，避免重复）
     // DOOR_OPEN: 仅 closures @ 500ms — 最快检测关门
     // CHARGING: 仅 charge @ 500ms — 功率/SOC 实时
     // CONNECTING: vcsec + drive + charge @ 2000ms — 会话维持 + 首帧数据
@@ -242,7 +242,7 @@ static void init_tesla_ble() {
         []() { if (vehicle) vehicle->closures_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
     scheduler.register_poll("charge",   PollPriority::MEDIUM, 120000,  0,  500, 2000,
         []() { if (vehicle) vehicle->charge_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
-    scheduler.register_poll("vcsec",    PollPriority::MEDIUM, 5000,   0, 5000, 2000,
+    scheduler.register_poll("vcsec",    PollPriority::MEDIUM,    0,   0,    0, 2000,
         []() { if (vehicle) vehicle->vcsec_poll(); });
     scheduler.register_poll("climate",  PollPriority::LOW,   900000,   0,    0,    0,
         []() { if (vehicle) vehicle->climate_state_poll(TeslaBLE::WakePolicy::NO_WAKE_SKIP); });
@@ -366,10 +366,12 @@ extern "C" void app_main() {
                     scheduler.set_mode(new_mode);
                 }
 
-                // 仅 P 档检测车门；D/R/N/? 时带宽全给时速/档位
+                // 仅 P 档检测车门/充电；D/R/N/? 时带宽全给时速/档位
+                // vcsec 已在注册层限制为仅 CONNECTING（车门交给 closures，避免重复）
                 if (new_mode == DashMode::DRIVING) {
-                    bool need_doors = (current_data.gear == 'P');
-                    scheduler.set_slot_enabled("closures", need_doors);
+                    bool parked = (current_data.gear == 'P');
+                    scheduler.set_slot_enabled("closures", parked);
+                    scheduler.set_slot_enabled("charge",   parked);
 
                     // TPMS: 仅前2次读取（首次+5分钟后一次），之后停至下次P档
                     // 减少蓝牙负载，避免干扰车机-轮胎传感器通信
