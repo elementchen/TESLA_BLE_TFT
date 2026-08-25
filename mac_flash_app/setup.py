@@ -12,7 +12,7 @@ OPTIONS = {
     'includes': ['serial.tools.list_ports', 'tkinter.ttk', 'tkinter.messagebox'],
     'plist': {
         'CFBundleName': 'ESP32 Config Tool',
-        'CFBundleShortVersionString': '1.0.0',
+        'CFBundleShortVersionString': '2.1.0',
         'CFBundleIdentifier': 'com.tesla.esp32config',
         'CFBundleDocumentTypes': [],
         'NSHighResolutionCapable': True,
