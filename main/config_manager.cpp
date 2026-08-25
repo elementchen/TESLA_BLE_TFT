@@ -1,4 +1,5 @@
 #include "config_manager.h"
+#include "ota.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "nvs_flash.h"
@@ -123,6 +124,8 @@ void config_manager_process_command(const std::string &line) {
         printf("  SET PINS=s,m,o,d,c,r,b   Set SPI pins (SCK,MOSI,MISO,DC,CS,RST,BLK)\n");
         printf("  SAVE                Write config to NVS\n");
         printf("  LOAD                Reload config from NVS\n");
+        printf("  VERSION             Show firmware version\n");
+        printf("  OTA                 Reboot into OTA update mode\n");
         printf("  REBOOT              Restart ESP32\n");
     }
     else if (line == "STATUS") {
@@ -166,6 +169,12 @@ void config_manager_process_command(const std::string &line) {
     else if (line == "REBOOT") {
         printf("Rebooting...\n");
         esp_restart();
+    }
+    else if (line == "VERSION") {
+        printf("Version: %s\n", ota_firmware_version());
+    }
+    else if (line == "OTA") {
+        ota_request_reboot();
     }
     else {
         printf("ERR: Unknown command. Type HELP\n");
