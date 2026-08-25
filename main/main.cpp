@@ -8,6 +8,8 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 #include "driver/gpio.h"
 #include "esp_timer.h"
 #include "sim_payload.h"
@@ -23,6 +25,7 @@
 #include "poll_scheduler.h"
 #include "diagnostics.h"
 #include "config_manager.h"
+#include "ota.h"
 #include "lvgl.h"
 
 static constexpr const char *TAG = "TeslaDash";
@@ -271,11 +274,27 @@ static void lvgl_tick_timer_cb(void *arg) {
 // ─── 演示分支 app_main 入口 ──────────────────────────────────────────
 
 extern "C" void app_main() {
-    ESP_LOGI(TAG, "=== Tesla BLE Dashboard v2.0 ===");
-
     // 初始化 USB Serial JTAG 驱动（非阻塞读取配置命令）
+    // rx 缓冲加大到 4KB，为 OTA 二进制传输预留空间
     usb_serial_jtag_driver_config_t usb_cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+    usb_cfg.rx_buffer_size = 4096;
+    usb_cfg.tx_buffer_size = 4096;
     usb_serial_jtag_driver_install(&usb_cfg);
+
+    // NVS 必须在配置/OTA 读取之前初始化（也修复了「配置重启后读不回」的问题）
+    esp_err_t nvs_err = nvs_flash_init();
+    if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        nvs_err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(nvs_err);
+
+    // OTA 模式：极简引导（不初始化 BLE/显示），安全写 flash；成功则重启，失败则回退正常启动
+    if (ota_is_requested()) {
+        ota_run();
+    }
+
+    ESP_LOGI(TAG, "=== Tesla BLE Dashboard v%s ===", ota_firmware_version());
 
     config_manager_init();
     init_display();

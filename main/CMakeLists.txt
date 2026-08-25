@@ -10,12 +10,15 @@ idf_component_register(
         "poll_scheduler.cpp"
         "diagnostics.cpp"
         "config_manager.cpp"
+        "ota.cpp"
         ${UI_SRCS}
     INCLUDE_DIRS
         "."
         "ui"
     REQUIRES
         bt
+        app_update
+        esp_app_format
         nvs_flash
         driver
         esp_timer
